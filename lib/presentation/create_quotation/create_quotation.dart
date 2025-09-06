@@ -3,6 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
+import '../../core/services/pdf_service.dart';
+import '../../core/models/quotation.dart' as qmodels;
+import 'package:printing/printing.dart';
+import 'dart:ui' as ui;
+import 'dart:typed_data';
+import 'package:flutter/rendering.dart';
 import './widgets/calculation_summary_widget.dart';
 import './widgets/customer_details_widget.dart';
 import './widgets/live_preview_widget.dart';
@@ -24,12 +30,15 @@ class _CreateQuotationState extends State<CreateQuotation> {
   final TextEditingController _widthController = TextEditingController();
   final TextEditingController _heightController = TextEditingController();
   final TextEditingController _rateController = TextEditingController();
+  final TextEditingController _glassColorController = TextEditingController();
 
   // Form state
   Map<String, dynamic>? _selectedProduct;
   String _selectedUnit = 'feet';
+  bool _hasMosquitoNet = false;
   List<Map<String, dynamic>> _addedProducts = [];
   int? _editingIndex;
+  final GlobalKey _previewKey = GlobalKey();
 
   // Validation errors
   String? _nameError;
@@ -186,6 +195,13 @@ class _CreateQuotationState extends State<CreateQuotation> {
             products: _mockProducts,
             selectedProduct: _selectedProduct,
             onProductSelected: _onProductSelected,
+            hasMosquitoNet: _hasMosquitoNet,
+            onMosquitoNetChanged: (val) {
+              setState(() {
+                _hasMosquitoNet = val;
+              });
+            },
+            glassColorController: _glassColorController,
             widthController: _widthController,
             heightController: _heightController,
             rateController: _rateController,
@@ -196,11 +212,15 @@ class _CreateQuotationState extends State<CreateQuotation> {
             rateError: _rateError,
           ),
 
-          LivePreviewWidget(
-            selectedProduct: _selectedProduct,
-            width: double.tryParse(_widthController.text) ?? 0.0,
-            height: double.tryParse(_heightController.text) ?? 0.0,
-            unit: _selectedUnit,
+          RepaintBoundary(
+            key: _previewKey,
+            child: LivePreviewWidget(
+              selectedProduct: _selectedProduct,
+              width: double.tryParse(_widthController.text) ?? 0.0,
+              height: double.tryParse(_heightController.text) ?? 0.0,
+              unit: _selectedUnit,
+              hasMosquitoNet: _hasMosquitoNet,
+            ),
           ),
 
           if (_selectedProduct != null &&
@@ -247,6 +267,13 @@ class _CreateQuotationState extends State<CreateQuotation> {
                   products: _mockProducts,
                   selectedProduct: _selectedProduct,
                   onProductSelected: _onProductSelected,
+                  hasMosquitoNet: _hasMosquitoNet,
+                  onMosquitoNetChanged: (val) {
+                    setState(() {
+                      _hasMosquitoNet = val;
+                    });
+                  },
+                  glassColorController: _glassColorController,
                   widthController: _widthController,
                   heightController: _heightController,
                   rateController: _rateController,
@@ -284,6 +311,7 @@ class _CreateQuotationState extends State<CreateQuotation> {
                   width: double.tryParse(_widthController.text) ?? 0.0,
                   height: double.tryParse(_heightController.text) ?? 0.0,
                   unit: _selectedUnit,
+                  hasMosquitoNet: _hasMosquitoNet,
                 ),
                 CalculationSummaryWidget(
                   products: _addedProducts,
@@ -362,7 +390,107 @@ class _CreateQuotationState extends State<CreateQuotation> {
                 ),
               ),
             ),
-            SizedBox(width: 4.w),
+            SizedBox(width: 3.w),
+
+            // Download PDF button
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _addedProducts.isNotEmpty
+                    ? () async {
+                        if (!_validateCustomerForm()) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text(
+                                  'Please fill in all customer details'),
+                              backgroundColor:
+                                  AppTheme.lightTheme.colorScheme.error,
+                            ),
+                          );
+                          return;
+                        }
+
+                        // Generate a temporary quotation id
+                        final qId =
+                            'QUO-${DateTime.now().millisecondsSinceEpoch}';
+
+                        // Build Quotation model
+                        double subtotal = 0.0;
+                        for (final product in _addedProducts) {
+                          final area = _calculateArea(
+                            product['width'] as double,
+                            product['height'] as double,
+                            product['unit'] as String,
+                          );
+                          subtotal += area * (product['rate'] as double);
+                        }
+                        final gstAmount = subtotal * 0.18;
+                        final total = subtotal + gstAmount;
+
+                        final quotation = qmodels.Quotation(
+                          id: qId,
+                          customerName: _nameController.text.trim(),
+                          quotationDate: DateTime.now(),
+                          totalAmount: total,
+                          status: 'Draft',
+                          items: _addedProducts.map((product) {
+                            return qmodels.QuotationItem(
+                              itemName: product['name']?.toString() ?? '',
+                              category: product['category']?.toString() ?? '',
+                              size:
+                                  '${product['width']?.toString() ?? ''} ${product['unit'] ?? ''} x ${product['height']?.toString() ?? ''} ${product['unit'] ?? ''}',
+                              rate: (product['rate'] is num)
+                                  ? (product['rate'] as num).toDouble()
+                                  : double.tryParse(
+                                          product['rate']?.toString() ?? '0') ??
+                                      0.0,
+                              quantity: (product['quantity'] is int)
+                                  ? (product['quantity'] as int)
+                                  : 1,
+                              glassColor:
+                                  product['glassColor']?.toString() ?? '',
+                              hasMosquitoNet: product['hasMosquitoNet'] == true,
+                            );
+                          }).toList(),
+                        );
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Generating PDF...')),
+                        );
+
+                        try {
+                          final itemPreviews = await _capturePreviewsForItems();
+                          final file = await PdfService().generateQuotationPdf(
+                              quotation,
+                              itemPreviews: itemPreviews);
+                          final bytes = await file.readAsBytes();
+                          await Printing.sharePdf(
+                              bytes: bytes,
+                              filename: 'quotation_${quotation.id}.pdf');
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text('Failed to generate PDF: $e')),
+                          );
+                        }
+                      }
+                    : null,
+                child: Text(
+                  'Download PDF',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: EdgeInsets.symmetric(vertical: 3.h),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+
+            SizedBox(width: 3.w),
+
             Expanded(
               child: ElevatedButton(
                 onPressed: _addedProducts.isNotEmpty ? _saveQuotation : null,
@@ -391,6 +519,8 @@ class _CreateQuotationState extends State<CreateQuotation> {
     setState(() {
       _selectedProduct = product;
       _productError = null;
+      // reset mosquito net selection when a new product is chosen
+      _hasMosquitoNet = false;
     });
   }
 
@@ -398,6 +528,124 @@ class _CreateQuotationState extends State<CreateQuotation> {
     setState(() {
       _selectedUnit = unit;
     });
+  }
+
+  // Capture the repaint boundary and crop to the interior preview area (pane only).
+  Future<Uint8List?> _captureInteriorPreviewAsPng(
+      {required Map<String, dynamic> product,
+      required double productWidth,
+      required double productHeight,
+      required String unit,
+      required bool hasMosquitoNet}) async {
+    try {
+      final boundary = _previewKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
+      if (boundary == null) return null;
+      const double pixelRatio = 3.0;
+      final ui.Image fullImage = await boundary.toImage(pixelRatio: pixelRatio);
+
+      // compute interior rect using same logic as ProductPreviewPainter
+      final fullW = fullImage.width.toDouble();
+      final fullH = fullImage.height.toDouble();
+      final centerX = fullW / 2;
+      final centerY = fullH / 2;
+      final maxWidth = fullW * 0.7;
+      final maxHeight = fullH * 0.7;
+
+      final aspectRatio = (productWidth > 0 && productHeight > 0)
+          ? (productWidth / productHeight)
+          : 1.0;
+      double drawW, drawH;
+      if (aspectRatio > 1) {
+        drawW = maxWidth;
+        drawH = maxWidth / aspectRatio;
+      } else {
+        drawH = maxHeight;
+        drawW = maxHeight * aspectRatio;
+      }
+
+      final srcRect = Rect.fromCenter(
+          center: Offset(centerX, centerY), width: drawW, height: drawH);
+
+      // clamp to image bounds
+      final clamped = Rect.fromLTRB(
+        srcRect.left.clamp(0.0, fullW),
+        srcRect.top.clamp(0.0, fullH),
+        srcRect.right.clamp(0.0, fullW),
+        srcRect.bottom.clamp(0.0, fullH),
+      );
+
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      final dstW = (clamped.width).toInt();
+      final dstH = (clamped.height).toInt();
+      if (dstW <= 0 || dstH <= 0) {
+        // fallback: return full image bytes
+        final byteData =
+            await fullImage.toByteData(format: ui.ImageByteFormat.png);
+        return byteData?.buffer.asUint8List();
+      }
+
+      // draw the cropped region into a new canvas
+      final dstRect = Rect.fromLTWH(0, 0, clamped.width, clamped.height);
+      final paint = Paint();
+      canvas.drawImageRect(fullImage, clamped, dstRect, paint);
+      final picture = recorder.endRecording();
+      final ui.Image cropped = await picture.toImage(dstW, dstH);
+      final byteData = await cropped.toByteData(format: ui.ImageByteFormat.png);
+      return byteData?.buffer.asUint8List();
+    } catch (e) {
+      // on any failure return null so PDF generator can fallback
+      return null;
+    }
+  }
+
+  // Capture a preview image for each added product by temporarily
+  // updating the preview state and capturing the repaint boundary.
+  Future<List<Uint8List?>> _capturePreviewsForItems() async {
+    final previews = <Uint8List?>[];
+    // save current state
+    final prevSelected = _selectedProduct;
+    final prevWidthText = _widthController.text;
+    final prevHeightText = _heightController.text;
+    final prevUnit = _selectedUnit;
+    final prevHasNet = _hasMosquitoNet;
+
+    for (final product in _addedProducts) {
+      try {
+        setState(() {
+          _selectedProduct = product;
+          _widthController.text = (product['width'] as double).toString();
+          _heightController.text = (product['height'] as double).toString();
+          _selectedUnit = product['unit'] as String;
+          _hasMosquitoNet = product['hasMosquitoNet'] == true;
+        });
+
+        // wait a frame for the widget to rebuild and paint
+        await Future.delayed(const Duration(milliseconds: 150));
+        final bytes = await _captureInteriorPreviewAsPng(
+          product: product,
+          productWidth: (product['width'] as double),
+          productHeight: (product['height'] as double),
+          unit: product['unit'] as String,
+          hasMosquitoNet: product['hasMosquitoNet'] == true,
+        );
+        previews.add(bytes);
+      } catch (_) {
+        previews.add(null);
+      }
+    }
+
+    // restore previous state
+    setState(() {
+      _selectedProduct = prevSelected;
+      _widthController.text = prevWidthText;
+      _heightController.text = prevHeightText;
+      _selectedUnit = prevUnit;
+      _hasMosquitoNet = prevHasNet;
+    });
+    await Future.delayed(const Duration(milliseconds: 100));
+    return previews;
   }
 
   void _addProduct() {
@@ -410,6 +658,8 @@ class _CreateQuotationState extends State<CreateQuotation> {
         'height': double.parse(_heightController.text),
         'unit': _selectedUnit,
         'rate': double.parse(_rateController.text),
+        'glassColor': _glassColorController.text.trim(),
+        'hasMosquitoNet': _hasMosquitoNet,
       };
 
       setState(() {
@@ -468,6 +718,7 @@ class _CreateQuotationState extends State<CreateQuotation> {
       _heightController.text = (product['height'] as double).toString();
       _rateController.text = (product['rate'] as double).toString();
       _selectedUnit = product['unit'] as String;
+      _glassColorController.text = (product['glassColor'] ?? '') as String;
     });
 
     // Scroll to product selection
@@ -570,6 +821,7 @@ class _CreateQuotationState extends State<CreateQuotation> {
     _widthController.clear();
     _heightController.clear();
     _rateController.clear();
+    _glassColorController.clear();
     setState(() {
       _selectedProduct = null;
       _selectedUnit = 'feet';
@@ -710,11 +962,55 @@ class _CreateQuotationState extends State<CreateQuotation> {
         ),
         actions: [
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
+              // Build Quotation model from current form data
+              final quotation = qmodels.Quotation(
+                id: quotationId,
+                customerName: _nameController.text.trim(),
+                quotationDate: DateTime.now(),
+                totalAmount: total,
+                status: 'Draft',
+                items: _addedProducts.map((product) {
+                  return qmodels.QuotationItem(
+                    itemName: product['name']?.toString() ?? '',
+                    category: product['category']?.toString() ?? '',
+                    size:
+                        '${product['width']?.toString() ?? ''} ${product['unit'] ?? ''} x ${product['height']?.toString() ?? ''} ${product['unit'] ?? ''}',
+                    rate: (product['rate'] is num)
+                        ? (product['rate'] as num).toDouble()
+                        : double.tryParse(product['rate']?.toString() ?? '0') ??
+                            0.0,
+                    quantity: (product['quantity'] is int)
+                        ? (product['quantity'] as int)
+                        : 1,
+                    glassColor: product['glassColor']?.toString() ?? '',
+                    hasMosquitoNet: product['hasMosquitoNet'] == true,
+                  );
+                }).toList(),
+              );
+
+              // Show progress
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Generating PDF...')),
+              );
+
+              try {
+                final itemPreviews = await _capturePreviewsForItems();
+                final file = await PdfService().generateQuotationPdf(quotation,
+                    itemPreviews: itemPreviews);
+                final bytes = await file.readAsBytes();
+                await Printing.sharePdf(
+                    bytes: bytes, filename: 'quotation_${quotation.id}.pdf');
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to generate PDF: $e')),
+                );
+              }
+
               _clearForm();
             },
-            child: const Text('Create New'),
+            child: const Text('Generate PDF'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -755,6 +1051,7 @@ class _CreateQuotationState extends State<CreateQuotation> {
     _widthController.dispose();
     _heightController.dispose();
     _rateController.dispose();
+    _glassColorController.dispose();
     super.dispose();
   }
 }

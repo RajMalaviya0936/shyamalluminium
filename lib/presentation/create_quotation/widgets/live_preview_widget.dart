@@ -8,6 +8,7 @@ class LivePreviewWidget extends StatefulWidget {
   final double width;
   final double height;
   final String unit;
+  final bool hasMosquitoNet;
 
   const LivePreviewWidget({
     super.key,
@@ -15,6 +16,7 @@ class LivePreviewWidget extends StatefulWidget {
     required this.width,
     required this.height,
     required this.unit,
+    this.hasMosquitoNet = false,
   });
 
   @override
@@ -104,7 +106,8 @@ class _LivePreviewWidgetState extends State<LivePreviewWidget>
             // Preview Container
             Container(
               width: double.infinity,
-              height: 25.h,
+              // made preview area larger per user request
+              height: 34.h,
               decoration: BoxDecoration(
                 color: AppTheme.lightTheme.colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(12),
@@ -122,12 +125,14 @@ class _LivePreviewWidgetState extends State<LivePreviewWidget>
                         return Transform.scale(
                           scale: _scaleAnimation.value,
                           child: CustomPaint(
-                            size: Size(double.infinity, 25.h),
+                            // increase painter canvas to match container
+                            size: Size(double.infinity, 34.h),
                             painter: ProductPreviewPainter(
                               product: widget.selectedProduct!,
                               width: widget.width,
                               height: widget.height,
                               unit: widget.unit,
+                              hasMosquitoNet: widget.hasMosquitoNet,
                             ),
                           ),
                         );
@@ -270,12 +275,14 @@ class ProductPreviewPainter extends CustomPainter {
   final double width;
   final double height;
   final String unit;
+  final bool hasMosquitoNet;
 
   ProductPreviewPainter({
     required this.product,
     required this.width,
     required this.height,
     required this.unit,
+    this.hasMosquitoNet = false,
   });
 
   @override
@@ -284,16 +291,19 @@ class ProductPreviewPainter extends CustomPainter {
       ..style = PaintingStyle.fill
       ..strokeWidth = 2.0;
 
+    // outer frame paint (thicker to resemble sample)
     final outlinePaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.0
+      ..strokeWidth = 6.0
       ..color = Colors.black87;
 
     // Calculate drawing dimensions
     final centerX = size.width / 2;
     final centerY = size.height / 2;
-    final maxWidth = size.width * 0.7;
-    final maxHeight = size.height * 0.7;
+  // Allow the drawing to occupy a larger portion of the canvas so the
+  // preview appears visually bigger.
+  final maxWidth = size.width * 0.82;
+  final maxHeight = size.height * 0.82;
 
     // Scale dimensions proportionally
     final aspectRatio = width / height;
@@ -317,7 +327,11 @@ class ProductPreviewPainter extends CustomPainter {
     final materialColor = _getMaterialColor(product['category'] as String);
     paint.color = materialColor;
 
-    // Draw based on product template
+  // Draw an inner frame to create the visible white gap like the sample
+  final innerFrame = rect.deflate(6);
+  canvas.drawRRect(RRect.fromRectAndRadius(innerFrame, const Radius.circular(4)), Paint()..color = Colors.white);
+
+  // Draw based on product template
     final template = _getProductTemplate(product['name'] as String);
 
     switch (template) {
@@ -336,6 +350,85 @@ class ProductPreviewPainter extends CustomPainter {
 
     // Draw dimensions
     _drawDimensions(canvas, rect, size);
+    // For windows: show split widths below the main width text and
+    // ensure mosquito net is drawn only on the right pane when split.
+    if (template == 'window') {
+      const double splitThreshold = 12.0;
+      final bool shouldSplit = width > splitThreshold;
+
+      if (shouldSplit) {
+        // draw split widths below the full width label
+        final textPainter = TextPainter(textDirection: TextDirection.ltr);
+        final leftWidthValue = width / 2;
+        final rightWidthValue = width - leftWidthValue;
+        final leftText = '${leftWidthValue.toStringAsFixed(1)} $unit';
+        final rightText = '${rightWidthValue.toStringAsFixed(1)} $unit';
+
+        textPainter.text = TextSpan(
+          text: leftText,
+          style: const TextStyle(
+            color: Colors.black87,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        );
+        textPainter.layout();
+
+        // position below the full width label
+        final splitY = rect.bottom + 20 + 8 + 16;
+        final leftX =
+            rect.center.dx - (drawWidth / 4) - (textPainter.width / 2);
+        textPainter.paint(canvas, Offset(leftX, splitY));
+
+        textPainter.text = TextSpan(
+          text: rightText,
+          style: const TextStyle(
+            color: Colors.black87,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        );
+        textPainter.layout();
+        final rightX =
+            rect.center.dx + (drawWidth / 4) - (textPainter.width / 2);
+        textPainter.paint(canvas, Offset(rightX, splitY));
+      } else {
+        // if not split and mosquito net selected, draw label on full rect
+        if (hasMosquitoNet) {
+          final textPainter = TextPainter(textDirection: TextDirection.ltr);
+          textPainter.text = TextSpan(
+            // text: 'Mosquito Net',
+            style: const TextStyle(
+              color: Colors.black87,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          );
+          textPainter.layout();
+          textPainter.paint(
+            canvas,
+            Offset(rect.right - textPainter.width - 8, rect.top + 8),
+          );
+        }
+      }
+    }
+  }
+
+  void _drawMosquitoNetMesh(Canvas canvas, Rect rect) {
+    final meshPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.7
+      ..color = Colors.black26;
+
+    const int lines = 10;
+    for (int i = 0; i <= lines; i++) {
+      final dx = rect.left + (rect.width / lines) * i;
+      canvas.drawLine(Offset(dx, rect.top), Offset(dx, rect.bottom), meshPaint);
+    }
+    for (int j = 0; j <= lines; j++) {
+      final dy = rect.top + (rect.height / lines) * j;
+      canvas.drawLine(Offset(rect.left, dy), Offset(rect.right, dy), meshPaint);
+    }
   }
 
   void _drawDoor(Canvas canvas, Rect rect, Paint paint, Paint outlinePaint) {
@@ -402,38 +495,71 @@ class ProductPreviewPainter extends CustomPainter {
     );
 
     // Glass panes
-    final glassPaint = Paint()..color = Colors.lightBlue.withValues(alpha: 0.3);
+    // stronger glass color and thicker divider to match sample
+    final glassPaint = Paint()..color = Colors.lightBlue.withValues(alpha: 0.45);
     final dividerPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..color = Colors.black54;
+      ..strokeWidth = 3.0
+      ..color = Colors.black87;
 
-    // Left pane
-    final leftPane = Rect.fromLTWH(
-      rect.left + rect.width * 0.05,
-      rect.top + rect.height * 0.05,
-      rect.width * 0.42,
-      rect.height * 0.9,
-    );
+    // Determine if splitting is needed. Threshold is in same unit as provided width.
+    const double splitThreshold = 12.0; // user can change this value as needed
+    final bool shouldSplit = width > splitThreshold;
+
+    // compute pane rects
+    Rect leftPane, rightPane;
+    if (shouldSplit) {
+      // split into two equal panels with small gap
+      final paneWidth = rect.width * 0.47;
+      leftPane = Rect.fromLTWH(
+        rect.left + rect.width * 0.03,
+        rect.top + rect.height * 0.05,
+        paneWidth,
+        rect.height * 0.9,
+      );
+      rightPane = Rect.fromLTWH(
+        leftPane.right + rect.width * 0.03,
+        rect.top + rect.height * 0.05,
+        paneWidth,
+        rect.height * 0.9,
+      );
+    } else {
+      // default two-pane layout as before
+      leftPane = Rect.fromLTWH(
+        rect.left + rect.width * 0.05,
+        rect.top + rect.height * 0.05,
+        rect.width * 0.42,
+        rect.height * 0.9,
+      );
+      rightPane = Rect.fromLTWH(
+        rect.left + rect.width * 0.53,
+        rect.top + rect.height * 0.05,
+        rect.width * 0.42,
+        rect.height * 0.9,
+      );
+    }
+
+    // Draw panes
     canvas.drawRect(leftPane, glassPaint);
     canvas.drawRect(leftPane, dividerPaint);
 
-    // Right pane
-    final rightPane = Rect.fromLTWH(
-      rect.left + rect.width * 0.53,
-      rect.top + rect.height * 0.05,
-      rect.width * 0.42,
-      rect.height * 0.9,
-    );
     canvas.drawRect(rightPane, glassPaint);
     canvas.drawRect(rightPane, dividerPaint);
 
-    // Center divider
+    // Center divider (visual)
     canvas.drawLine(
-      Offset(rect.center.dx, rect.top),
-      Offset(rect.center.dx, rect.bottom),
+      Offset((leftPane.right + rightPane.left) / 2, rect.top),
+      Offset((leftPane.right + rightPane.left) / 2, rect.bottom),
       dividerPaint,
     );
+
+    // If mosquito net selected, draw it only on the right pane
+    if (hasMosquitoNet) {
+      _drawMosquitoNetMesh(canvas, rightPane);
+    }
+
+    // Pane-level labels removed to avoid duplication; split widths are painted
+    // below the full width in the main paint() flow.
   }
 
   void _drawCupboard(
@@ -536,81 +662,49 @@ class ProductPreviewPainter extends CustomPainter {
       ..color = Colors.black87
       ..strokeWidth = 1.0;
 
-    // Width dimension (bottom)
-    final widthY = rect.bottom + 20;
-    canvas.drawLine(
-      Offset(rect.left, widthY),
-      Offset(rect.right, widthY),
-      dimensionPaint,
-    );
+    // Width dimension (bottom) - longer line and bigger ticks to match sample
+    final widthY = rect.bottom + 26;
+    canvas.drawLine(Offset(rect.left, widthY), Offset(rect.right, widthY), dimensionPaint);
 
-    // Width arrows
-    canvas.drawLine(
-      Offset(rect.left, widthY - 5),
-      Offset(rect.left, widthY + 5),
-      dimensionPaint,
-    );
-    canvas.drawLine(
-      Offset(rect.right, widthY - 5),
-      Offset(rect.right, widthY + 5),
-      dimensionPaint,
-    );
+    // Width end ticks
+    const tickLen = 10.0;
+    canvas.drawLine(Offset(rect.left, widthY - tickLen / 2), Offset(rect.left, widthY + tickLen / 2), dimensionPaint);
+    canvas.drawLine(Offset(rect.right, widthY - tickLen / 2), Offset(rect.right, widthY + tickLen / 2), dimensionPaint);
 
-    // Width text
+    // Width text (bigger)
     textPainter.text = TextSpan(
       text: '${width.toStringAsFixed(1)} $unit',
       style: const TextStyle(
         color: Colors.black87,
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
       ),
     );
     textPainter.layout();
-    textPainter.paint(
-      canvas,
-      Offset(
-        rect.center.dx - textPainter.width / 2,
-        widthY + 8,
-      ),
-    );
+    textPainter.paint(canvas, Offset(rect.center.dx - textPainter.width / 2, widthY + 10));
 
-    // Height dimension (right)
-    final heightX = rect.right + 20;
-    canvas.drawLine(
-      Offset(heightX, rect.top),
-      Offset(heightX, rect.bottom),
-      dimensionPaint,
-    );
+    // Height dimension (right) - bigger ticks and larger rotated label
+    final heightX = rect.right + 28;
+    canvas.drawLine(Offset(heightX, rect.top), Offset(heightX, rect.bottom), dimensionPaint);
 
-    // Height arrows
-    canvas.drawLine(
-      Offset(heightX - 5, rect.top),
-      Offset(heightX + 5, rect.top),
-      dimensionPaint,
-    );
-    canvas.drawLine(
-      Offset(heightX - 5, rect.bottom),
-      Offset(heightX + 5, rect.bottom),
-      dimensionPaint,
-    );
+    // Height end ticks
+    canvas.drawLine(Offset(heightX - tickLen / 2, rect.top), Offset(heightX + tickLen / 2, rect.top), dimensionPaint);
+    canvas.drawLine(Offset(heightX - tickLen / 2, rect.bottom), Offset(heightX + tickLen / 2, rect.bottom), dimensionPaint);
 
-    // Height text (rotated)
+    // Height text (rotated, larger)
     canvas.save();
-    canvas.translate(heightX + 8, rect.center.dy);
+    canvas.translate(heightX + 12, rect.center.dy);
     canvas.rotate(-1.5708); // -90 degrees
     textPainter.text = TextSpan(
       text: '${height.toStringAsFixed(1)} $unit',
       style: const TextStyle(
         color: Colors.black87,
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
       ),
     );
     textPainter.layout();
-    textPainter.paint(
-      canvas,
-      Offset(-textPainter.width / 2, -textPainter.height / 2),
-    );
+    textPainter.paint(canvas, Offset(-textPainter.width / 2, -textPainter.height / 2));
     canvas.restore();
   }
 
@@ -643,6 +737,7 @@ class ProductPreviewPainter extends CustomPainter {
     return oldDelegate.product != product ||
         oldDelegate.width != width ||
         oldDelegate.height != height ||
-        oldDelegate.unit != unit;
+        oldDelegate.unit != unit ||
+        oldDelegate.hasMosquitoNet != hasMosquitoNet;
   }
 }

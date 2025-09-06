@@ -42,6 +42,8 @@ class QuotationItem {
   final String size;
   final double rate;
   final int quantity;
+  final String? glassColor;
+  final bool hasMosquitoNet;
 
   QuotationItem({
     required this.itemName,
@@ -49,6 +51,8 @@ class QuotationItem {
     required this.size,
     required this.rate,
     required this.quantity,
+    this.glassColor,
+    this.hasMosquitoNet = false,
   });
 
   factory QuotationItem.fromJson(Map<String, dynamic> json) => QuotationItem(
@@ -57,6 +61,9 @@ class QuotationItem {
         size: json['size'],
         rate: json['rate'],
         quantity: json['quantity'],
+        glassColor: json['glassColor'] ?? json['glazing'] ?? '',
+        hasMosquitoNet:
+            json['hasMosquitoNet'] == true || json['mosquitoNet'] == true,
       );
 
   Map<String, dynamic> toJson() => {
@@ -65,5 +72,7 @@ class QuotationItem {
         'size': size,
         'rate': rate,
         'quantity': quantity,
+        'glassColor': glassColor ?? '',
+        'hasMosquitoNet': hasMosquitoNet,
       };
 }

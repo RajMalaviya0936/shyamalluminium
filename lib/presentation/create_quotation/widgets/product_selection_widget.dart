@@ -8,6 +8,9 @@ class ProductSelectionWidget extends StatefulWidget {
   final List<Map<String, dynamic>> products;
   final Map<String, dynamic>? selectedProduct;
   final Function(Map<String, dynamic>) onProductSelected;
+  final bool hasMosquitoNet;
+  final Function(bool) onMosquitoNetChanged;
+  final TextEditingController glassColorController;
   final TextEditingController widthController;
   final TextEditingController heightController;
   final TextEditingController rateController;
@@ -22,6 +25,9 @@ class ProductSelectionWidget extends StatefulWidget {
     required this.products,
     this.selectedProduct,
     required this.onProductSelected,
+    this.hasMosquitoNet = false,
+    required this.onMosquitoNetChanged,
+    required this.glassColorController,
     required this.widthController,
     required this.heightController,
     required this.rateController,
@@ -87,6 +93,19 @@ class _ProductSelectionWidgetState extends State<ProductSelectionWidget> {
               ],
             ),
             SizedBox(height: 2.h),
+
+            // Mosquito Net Option (conditional)
+            if (_shouldShowMosquitoOption(widget.selectedProduct)) ...[
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Add Mosquito Net'),
+                value: widget.hasMosquitoNet,
+                onChanged: (val) {
+                  if (val != null) widget.onMosquitoNetChanged(val);
+                },
+              ),
+              SizedBox(height: 2.h),
+            ],
 
             // Product Dropdown
             GestureDetector(
@@ -323,10 +342,48 @@ class _ProductSelectionWidgetState extends State<ProductSelectionWidget> {
                 FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
               ],
             ),
+            SizedBox(height: 2.h),
+
+            // Glass color input (free text) for glass/window products
+            if (_shouldShowGlassColorField(widget.selectedProduct)) ...[
+              TextFormField(
+                controller: widget.glassColorController,
+                decoration: InputDecoration(
+                  labelText: 'Glass Color',
+                  hintText: 'e.g., Clear / Tinted / Frosted',
+                  prefixIcon: Icon(
+                    Icons.color_lens,
+                    color: AppTheme.lightTheme.colorScheme.primary,
+                  ),
+                ),
+                textInputAction: TextInputAction.next,
+              ),
+              SizedBox(height: 2.h),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  bool _shouldShowGlassColorField(Map<String, dynamic>? product) {
+    if (product == null) return false;
+    final name = (product['name'] as String).toLowerCase();
+    final category = (product['category'] as String).toLowerCase();
+    if (category.contains('glass')) return true;
+    if (name.contains('window')) return true;
+    return false;
+  }
+
+  bool _shouldShowMosquitoOption(Map<String, dynamic>? product) {
+    if (product == null) return false;
+    final name = (product['name'] as String).toLowerCase();
+    final category = (product['category'] as String).toLowerCase();
+
+    // Show for PVC sliding windows or any aluminium frames
+    if (name.contains('pvc') && name.contains('window')) return true;
+    if (category.contains('aluminium')) return true;
+    return false;
   }
 
   Color _getCategoryColor(String category) {

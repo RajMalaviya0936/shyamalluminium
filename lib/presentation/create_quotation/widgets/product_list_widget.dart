@@ -191,6 +191,53 @@ class ProductListWidget extends StatelessWidget {
                             ],
                           ),
                         ),
+                        SizedBox(height: 1.h),
+                        // Glass color and Mosquito Net indicators for this product
+                        Row(
+                          children: [
+                            if ((product['glassColor'] ?? '') != '')
+                              Padding(
+                                padding: EdgeInsets.only(right: 2.w),
+                                child: Chip(
+                                  backgroundColor:
+                                      AppTheme.lightTheme.colorScheme.surface,
+                                  label: Text(
+                                    'Glass: ${product['glassColor']}',
+                                    style: TextStyle(
+                                      fontSize: 10.sp,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            if (product['hasMosquitoNet'] == true)
+                              Chip(
+                                backgroundColor: AppTheme
+                                    .lightTheme.colorScheme.primary
+                                    .withValues(alpha: 0.12),
+                                label: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.check_box,
+                                      size: 14,
+                                      color: AppTheme
+                                          .lightTheme.colorScheme.primary,
+                                    ),
+                                    SizedBox(width: 1.w),
+                                    Text(
+                                      'Mosquito Net',
+                                      style: TextStyle(
+                                        fontSize: 10.sp,
+                                        color: AppTheme
+                                            .lightTheme.colorScheme.primary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
