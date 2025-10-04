@@ -9,6 +9,10 @@ class LivePreviewWidget extends StatefulWidget {
   final double height;
   final String unit;
   final bool hasMosquitoNet;
+  final bool hasGrill;
+  final String grillOrientation;
+  final int grillPipeCount;
+  final int pvcWindowCount;
 
   const LivePreviewWidget({
     super.key,
@@ -17,6 +21,10 @@ class LivePreviewWidget extends StatefulWidget {
     required this.height,
     required this.unit,
     this.hasMosquitoNet = false,
+    this.hasGrill = false,
+    this.grillOrientation = 'horizontal',
+    this.grillPipeCount = 0,
+    this.pvcWindowCount = 1,
   });
 
   @override
@@ -118,22 +126,30 @@ class _LivePreviewWidgetState extends State<LivePreviewWidget>
               ),
               child: widget.selectedProduct != null &&
                       widget.width > 0 &&
-                      widget.height > 0
+                      widget.height > 0 &&
+                      widget.selectedProduct != null &&
+                      widget.selectedProduct!['category'] == 'Main'
                   ? AnimatedBuilder(
                       animation: _scaleAnimation,
                       builder: (context, child) {
                         return Transform.scale(
                           scale: _scaleAnimation.value,
                           child: CustomPaint(
-                            // increase painter canvas to match container
-                            size: Size(double.infinity, 34.h),
                             painter: ProductPreviewPainter(
+                              // pass the actual selected product so painter can
+                              // special-case names like 'Z Hydrolic'
                               product: widget.selectedProduct!,
                               width: widget.width,
                               height: widget.height,
                               unit: widget.unit,
                               hasMosquitoNet: widget.hasMosquitoNet,
+                              hasGrill: widget.hasGrill,
+                              grillOrientation: widget.grillOrientation,
+                              grillPipeCount: widget.grillPipeCount,
+                              pvcWindowCount: widget.pvcWindowCount,
                             ),
+                            child:
+                                SizedBox(width: double.infinity, height: 34.h),
                           ),
                         );
                       },
@@ -225,6 +241,8 @@ class _LivePreviewWidgetState extends State<LivePreviewWidget>
                 color: AppTheme.lightTheme.colorScheme.primary,
               ),
         ),
+        // Add extra spacing below the Width value so painter labels (if any) don't overlap
+        if (label.toLowerCase() == 'width') SizedBox(height: 1.h),
       ],
     );
   }
@@ -242,6 +260,10 @@ class _LivePreviewWidgetState extends State<LivePreviewWidget>
       case 'cm':
         widthInFeet = widget.width / 30.48;
         heightInFeet = widget.height / 30.48;
+        break;
+      case 'mm':
+        widthInFeet = widget.width / 304.8;
+        heightInFeet = widget.height / 304.8;
         break;
     }
 
@@ -276,6 +298,10 @@ class ProductPreviewPainter extends CustomPainter {
   final double height;
   final String unit;
   final bool hasMosquitoNet;
+  final bool hasGrill;
+  final String grillOrientation;
+  final int grillPipeCount;
+  final int pvcWindowCount;
 
   ProductPreviewPainter({
     required this.product,
@@ -283,6 +309,10 @@ class ProductPreviewPainter extends CustomPainter {
     required this.height,
     required this.unit,
     this.hasMosquitoNet = false,
+    this.hasGrill = false,
+    this.grillOrientation = 'horizontal',
+    this.grillPipeCount = 0,
+    this.pvcWindowCount = 1,
   });
 
   @override
@@ -300,10 +330,10 @@ class ProductPreviewPainter extends CustomPainter {
     // Calculate drawing dimensions
     final centerX = size.width / 2;
     final centerY = size.height / 2;
-  // Allow the drawing to occupy a larger portion of the canvas so the
-  // preview appears visually bigger.
-  final maxWidth = size.width * 0.82;
-  final maxHeight = size.height * 0.82;
+    // Allow the drawing to occupy a larger portion of the canvas so the
+    // preview appears visually bigger.
+    final maxWidth = size.width * 0.82;
+    final maxHeight = size.height * 0.82;
 
     // Scale dimensions proportionally
     final aspectRatio = width / height;
@@ -327,12 +357,15 @@ class ProductPreviewPainter extends CustomPainter {
     final materialColor = _getMaterialColor(product['category'] as String);
     paint.color = materialColor;
 
-  // Draw an inner frame to create the visible white gap like the sample
-  final innerFrame = rect.deflate(6);
-  canvas.drawRRect(RRect.fromRectAndRadius(innerFrame, const Radius.circular(4)), Paint()..color = Colors.white);
+    // Draw an inner frame to create the visible white gap like the sample
+    final innerFrame = rect.deflate(6);
+    canvas.drawRRect(
+        RRect.fromRectAndRadius(innerFrame, const Radius.circular(4)),
+        Paint()..color = Colors.white);
 
-  // Draw based on product template
-    final template = _getProductTemplate(product['name'] as String);
+    // Draw based on product template (decide using the full product map so
+    // category-based templates like Main -> window are respected)
+    final template = _getProductTemplateFromProduct(product);
 
     switch (template) {
       case 'door':
@@ -356,60 +389,37 @@ class ProductPreviewPainter extends CustomPainter {
       const double splitThreshold = 12.0;
       final bool shouldSplit = width > splitThreshold;
 
-      if (shouldSplit) {
-        // draw split widths below the full width label
+      // if not split and mosquito net selected, draw label on full rect
+      if (!shouldSplit && hasMosquitoNet) {
         final textPainter = TextPainter(textDirection: TextDirection.ltr);
-        final leftWidthValue = width / 2;
-        final rightWidthValue = width - leftWidthValue;
-        final leftText = '${leftWidthValue.toStringAsFixed(1)} $unit';
-        final rightText = '${rightWidthValue.toStringAsFixed(1)} $unit';
+        // Paint a small badge at top-left of rect to indicate mosquito net
+        const badgePadding = 6.0;
+        final badgeRect = Rect.fromLTWH(rect.left + 8, rect.top + 8, 110, 22);
+        final badgePaint = Paint()..color = Colors.white.withOpacity(0.9);
+        canvas.drawRRect(
+            RRect.fromRectAndRadius(badgeRect, const Radius.circular(4)),
+            badgePaint);
+        // border
+        canvas.drawRRect(
+            RRect.fromRectAndRadius(badgeRect, const Radius.circular(4)),
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..color = Colors.black26
+              ..strokeWidth = 0.6);
 
         textPainter.text = TextSpan(
-          text: leftText,
+          text: 'Mosquito Net',
           style: const TextStyle(
             color: Colors.black87,
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
         );
         textPainter.layout();
-
-        // position below the full width label
-        final splitY = rect.bottom + 20 + 8 + 16;
-        final leftX =
-            rect.center.dx - (drawWidth / 4) - (textPainter.width / 2);
-        textPainter.paint(canvas, Offset(leftX, splitY));
-
-        textPainter.text = TextSpan(
-          text: rightText,
-          style: const TextStyle(
-            color: Colors.black87,
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-          ),
+        textPainter.paint(
+          canvas,
+          Offset(badgeRect.left + badgePadding, badgeRect.top + 3),
         );
-        textPainter.layout();
-        final rightX =
-            rect.center.dx + (drawWidth / 4) - (textPainter.width / 2);
-        textPainter.paint(canvas, Offset(rightX, splitY));
-      } else {
-        // if not split and mosquito net selected, draw label on full rect
-        if (hasMosquitoNet) {
-          final textPainter = TextPainter(textDirection: TextDirection.ltr);
-          textPainter.text = TextSpan(
-            // text: 'Mosquito Net',
-            style: const TextStyle(
-              color: Colors.black87,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          );
-          textPainter.layout();
-          textPainter.paint(
-            canvas,
-            Offset(rect.right - textPainter.width - 8, rect.top + 8),
-          );
-        }
       }
     }
   }
@@ -496,7 +506,8 @@ class ProductPreviewPainter extends CustomPainter {
 
     // Glass panes
     // stronger glass color and thicker divider to match sample
-    final glassPaint = Paint()..color = Colors.lightBlue.withValues(alpha: 0.45);
+    final glassPaint = Paint()
+      ..color = Colors.lightBlue.withValues(alpha: 0.45);
     final dividerPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.0
@@ -504,58 +515,169 @@ class ProductPreviewPainter extends CustomPainter {
 
     // Determine if splitting is needed. Threshold is in same unit as provided width.
     const double splitThreshold = 12.0; // user can change this value as needed
-    final bool shouldSplit = width > splitThreshold;
 
-    // compute pane rects
-    Rect leftPane, rightPane;
-    if (shouldSplit) {
-      // split into two equal panels with small gap
-      final paneWidth = rect.width * 0.47;
-      leftPane = Rect.fromLTWH(
-        rect.left + rect.width * 0.03,
-        rect.top + rect.height * 0.05,
-        paneWidth,
-        rect.height * 0.9,
-      );
-      rightPane = Rect.fromLTWH(
-        leftPane.right + rect.width * 0.03,
-        rect.top + rect.height * 0.05,
-        paneWidth,
-        rect.height * 0.9,
-      );
-    } else {
-      // default two-pane layout as before
-      leftPane = Rect.fromLTWH(
+    // Special-case: Z Hydrolic should always render as a single window with
+    // no internal partitions regardless of pvcWindowCount value.
+    final productName = (product['name'] ?? '').toString();
+    // Treat as Z Hydrolic when either the id matches our mock id or the name
+    // contains the phrase (case-insensitive). This covers products saved from
+    // different flows where the name may be slightly different.
+    final prodId = product['id'];
+    final forceFlag = product['forceSinglePane'] == true;
+    final isZHydrolic = forceFlag ||
+        (prodId is int && prodId == 103) ||
+        productName.trim().toLowerCase().contains('z hydrolic');
+
+    // Determine custom PVC window count early: prefer explicit prop, fallback to product map
+    int pvcCount = pvcWindowCount;
+    if (pvcCount <= 0) {
+      try {
+        final v = product['pvcWindowCount'];
+        if (v is int && v > 0)
+          pvcCount = v;
+        else if (v is String) pvcCount = int.tryParse(v) ?? 1;
+      } catch (_) {
+        pvcCount = 1;
+      }
+    }
+
+    // Force single pane for Z Hydrolic products
+    if (isZHydrolic) pvcCount = 1;
+
+    final bool shouldSplit =
+        pvcCount > 1 && width > splitThreshold && !isZHydrolic;
+
+    // Build panes list for any pvcCount (1, 2, or >2)
+    final gap = rect.width * 0.02;
+    final panes = <Rect>[];
+    if (pvcCount == 1) {
+      // Single full pane (centered with same inner padding)
+      final singlePane = Rect.fromLTWH(
         rect.left + rect.width * 0.05,
         rect.top + rect.height * 0.05,
-        rect.width * 0.42,
+        rect.width * 0.9,
         rect.height * 0.9,
       );
-      rightPane = Rect.fromLTWH(
-        rect.left + rect.width * 0.53,
-        rect.top + rect.height * 0.05,
-        rect.width * 0.42,
-        rect.height * 0.9,
-      );
+      panes.add(singlePane);
+    } else if (pvcCount == 2) {
+      // compute pane rects (two-pane layout, may adjust if large width)
+      Rect leftPane, rightPane;
+      if (shouldSplit) {
+        final paneWidth = rect.width * 0.47;
+        leftPane = Rect.fromLTWH(
+          rect.left + rect.width * 0.03,
+          rect.top + rect.height * 0.05,
+          paneWidth,
+          rect.height * 0.9,
+        );
+        rightPane = Rect.fromLTWH(
+          leftPane.right + rect.width * 0.03,
+          rect.top + rect.height * 0.05,
+          paneWidth,
+          rect.height * 0.9,
+        );
+      } else {
+        leftPane = Rect.fromLTWH(
+          rect.left + rect.width * 0.05,
+          rect.top + rect.height * 0.05,
+          rect.width * 0.42,
+          rect.height * 0.9,
+        );
+        rightPane = Rect.fromLTWH(
+          rect.left + rect.width * 0.53,
+          rect.top + rect.height * 0.05,
+          rect.width * 0.42,
+          rect.height * 0.9,
+        );
+      }
+      panes.add(leftPane);
+      panes.add(rightPane);
+    } else {
+      // N-pane layout: equally spaced panes across the rect
+      final paneWidth = (rect.width - gap * (pvcCount + 1)) / pvcCount;
+      final paneHeight = rect.height * 0.9;
+      double startX = rect.left + gap;
+      for (int i = 0; i < pvcCount; i++) {
+        final r = Rect.fromLTWH(
+            startX, rect.top + rect.height * 0.05, paneWidth, paneHeight);
+        panes.add(r);
+        startX += paneWidth + gap;
+      }
     }
 
     // Draw panes
-    canvas.drawRect(leftPane, glassPaint);
-    canvas.drawRect(leftPane, dividerPaint);
+    for (final p in panes) {
+      canvas.drawRect(p, glassPaint);
+      canvas.drawRect(p, dividerPaint);
+    }
 
-    canvas.drawRect(rightPane, glassPaint);
-    canvas.drawRect(rightPane, dividerPaint);
+    // Draw vertical dividers between panes (for >1)
+    for (int i = 1; i < panes.length; i++) {
+      final dx = panes[i].left - gap / 2;
+      canvas.drawLine(
+          Offset(dx, rect.top), Offset(dx, rect.bottom), dividerPaint);
+    }
 
-    // Center divider (visual)
-    canvas.drawLine(
-      Offset((leftPane.right + rightPane.left) / 2, rect.top),
-      Offset((leftPane.right + rightPane.left) / 2, rect.bottom),
-      dividerPaint,
-    );
+    // Draw small cut ticks '|' on the width dimension line for each internal pane boundary
+    try {
+      final smallTickLen = 8.0;
+      final widthY = rect.bottom + 26; // same baseline used by _drawDimensions
+      for (int i = 1; i < panes.length; i++) {
+        final dx = panes[i].left - gap / 2;
+        canvas.drawLine(Offset(dx, widthY - smallTickLen / 2),
+            Offset(dx, widthY + smallTickLen / 2), dividerPaint);
+      }
+    } catch (_) {}
 
-    // If mosquito net selected, draw it only on the right pane
-    if (hasMosquitoNet) {
-      _drawMosquitoNetMesh(canvas, rightPane);
+    // Draw per-pane width labels centered under each pane
+    try {
+      final textPainter = TextPainter(textDirection: TextDirection.ltr);
+      final labelY = rect.bottom + 12; // distance below the rect
+      final perPaneValue = (width / (pvcCount > 0 ? pvcCount : 1));
+      for (int i = 0; i < panes.length; i++) {
+        final label = '${perPaneValue.toStringAsFixed(1)} $unit';
+        textPainter.text = TextSpan(
+          text: label,
+          style: const TextStyle(
+            color: Colors.black87,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        );
+        textPainter.layout();
+        final x = panes[i].center.dx - textPainter.width / 2;
+        textPainter.paint(canvas, Offset(x, labelY));
+      }
+    } catch (_) {}
+
+    // If mosquito net selected, draw it only on the rightmost pane (or last pane)
+    if (hasMosquitoNet && panes.isNotEmpty) {
+      _drawMosquitoNetMesh(canvas, panes.last);
+    }
+
+    // If grill is requested, draw grill pipes over the whole rect
+    final bool useHasGrill = hasGrill;
+    final String useGrillOrientation = grillOrientation;
+    final int useGrillPipeCount = grillPipeCount;
+
+    if (useHasGrill && useGrillPipeCount > 0) {
+      final grillPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.0
+        ..color = Colors.black54;
+      if (useGrillOrientation == 'horizontal') {
+        for (int i = 0; i < useGrillPipeCount; i++) {
+          final y = rect.top + rect.height * (i + 1) / (useGrillPipeCount + 1);
+          canvas.drawLine(
+              Offset(rect.left + 4, y), Offset(rect.right - 4, y), grillPaint);
+        }
+      } else {
+        for (int i = 0; i < useGrillPipeCount; i++) {
+          final x = rect.left + rect.width * (i + 1) / (useGrillPipeCount + 1);
+          canvas.drawLine(
+              Offset(x, rect.top + 4), Offset(x, rect.bottom - 4), grillPaint);
+        }
+      }
     }
 
     // Pane-level labels removed to avoid duplication; split widths are painted
@@ -664,12 +786,15 @@ class ProductPreviewPainter extends CustomPainter {
 
     // Width dimension (bottom) - longer line and bigger ticks to match sample
     final widthY = rect.bottom + 26;
-    canvas.drawLine(Offset(rect.left, widthY), Offset(rect.right, widthY), dimensionPaint);
+    canvas.drawLine(
+        Offset(rect.left, widthY), Offset(rect.right, widthY), dimensionPaint);
 
     // Width end ticks
     const tickLen = 10.0;
-    canvas.drawLine(Offset(rect.left, widthY - tickLen / 2), Offset(rect.left, widthY + tickLen / 2), dimensionPaint);
-    canvas.drawLine(Offset(rect.right, widthY - tickLen / 2), Offset(rect.right, widthY + tickLen / 2), dimensionPaint);
+    canvas.drawLine(Offset(rect.left, widthY - tickLen / 2),
+        Offset(rect.left, widthY + tickLen / 2), dimensionPaint);
+    canvas.drawLine(Offset(rect.right, widthY - tickLen / 2),
+        Offset(rect.right, widthY + tickLen / 2), dimensionPaint);
 
     // Width text (bigger)
     textPainter.text = TextSpan(
@@ -681,15 +806,19 @@ class ProductPreviewPainter extends CustomPainter {
       ),
     );
     textPainter.layout();
-    textPainter.paint(canvas, Offset(rect.center.dx - textPainter.width / 2, widthY + 10));
+    textPainter.paint(
+        canvas, Offset(rect.center.dx - textPainter.width / 2, widthY + 10));
 
     // Height dimension (right) - bigger ticks and larger rotated label
     final heightX = rect.right + 28;
-    canvas.drawLine(Offset(heightX, rect.top), Offset(heightX, rect.bottom), dimensionPaint);
+    canvas.drawLine(Offset(heightX, rect.top), Offset(heightX, rect.bottom),
+        dimensionPaint);
 
     // Height end ticks
-    canvas.drawLine(Offset(heightX - tickLen / 2, rect.top), Offset(heightX + tickLen / 2, rect.top), dimensionPaint);
-    canvas.drawLine(Offset(heightX - tickLen / 2, rect.bottom), Offset(heightX + tickLen / 2, rect.bottom), dimensionPaint);
+    canvas.drawLine(Offset(heightX - tickLen / 2, rect.top),
+        Offset(heightX + tickLen / 2, rect.top), dimensionPaint);
+    canvas.drawLine(Offset(heightX - tickLen / 2, rect.bottom),
+        Offset(heightX + tickLen / 2, rect.bottom), dimensionPaint);
 
     // Height text (rotated, larger)
     canvas.save();
@@ -704,7 +833,8 @@ class ProductPreviewPainter extends CustomPainter {
       ),
     );
     textPainter.layout();
-    textPainter.paint(canvas, Offset(-textPainter.width / 2, -textPainter.height / 2));
+    textPainter.paint(
+        canvas, Offset(-textPainter.width / 2, -textPainter.height / 2));
     canvas.restore();
   }
 
@@ -723,8 +853,17 @@ class ProductPreviewPainter extends CustomPainter {
     }
   }
 
-  String _getProductTemplate(String productName) {
-    final name = productName.toLowerCase();
+  // (Name-based template detection removed) Use _getProductTemplateFromProduct
+  // which decides using both category and name.
+
+  String _getProductTemplateFromProduct(Map<String, dynamic> product) {
+    final name = (product['name'] ?? '').toString().toLowerCase();
+    final category = (product['category'] ?? '').toString().toLowerCase();
+
+    // If product is in Main category, treat it as a window by default
+    if (category == 'main') return 'window';
+
+    // Fallback to name-based detection
     if (name.contains('door')) return 'door';
     if (name.contains('window')) return 'window';
     if (name.contains('cupboard') || name.contains('cabinet'))
@@ -738,6 +877,10 @@ class ProductPreviewPainter extends CustomPainter {
         oldDelegate.width != width ||
         oldDelegate.height != height ||
         oldDelegate.unit != unit ||
-        oldDelegate.hasMosquitoNet != hasMosquitoNet;
+        oldDelegate.hasMosquitoNet != hasMosquitoNet ||
+        oldDelegate.hasGrill != hasGrill ||
+        oldDelegate.grillOrientation != grillOrientation ||
+        oldDelegate.grillPipeCount != grillPipeCount ||
+        oldDelegate.pvcWindowCount != pvcWindowCount;
   }
 }

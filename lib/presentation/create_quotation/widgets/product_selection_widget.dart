@@ -5,34 +5,74 @@ import 'package:sizer/sizer.dart';
 import '../../../core/app_export.dart';
 
 class ProductSelectionWidget extends StatefulWidget {
+  final List<String> topCategories;
+  final String? selectedTopCategory;
+  final Function(String?) onTopCategoryChanged;
   final List<Map<String, dynamic>> products;
   final Map<String, dynamic>? selectedProduct;
   final Function(Map<String, dynamic>) onProductSelected;
   final bool hasMosquitoNet;
   final Function(bool) onMosquitoNetChanged;
   final TextEditingController glassColorController;
+  final TextEditingController positionController;
+  final TextEditingController locationController;
+  final TextEditingController systemController;
+  final TextEditingController profileColorController;
+  final TextEditingController meshTypeController;
+  final TextEditingController lockingController;
+  final TextEditingController handleColorController;
+  final TextEditingController itemRemarksController;
   final TextEditingController widthController;
   final TextEditingController heightController;
   final TextEditingController rateController;
+  final TextEditingController unitPriceController;
+  final bool hasGrill;
+  final Function(bool) onHasGrillChanged;
+  final String grillOrientation;
+  final Function(String) onGrillOrientationChanged;
+  final TextEditingController grillPipeController;
+  final TextEditingController pvcCountController;
   final String selectedUnit;
   final Function(String) onUnitChanged;
+  final String selectedMeasurement; // 'sqft' or 'runningft'
+  final Function(String) onMeasurementChanged;
   final String? productError;
   final String? dimensionError;
   final String? rateError;
 
   const ProductSelectionWidget({
     super.key,
+    required this.topCategories,
+    this.selectedTopCategory,
+    required this.onTopCategoryChanged,
     required this.products,
     this.selectedProduct,
     required this.onProductSelected,
     this.hasMosquitoNet = false,
     required this.onMosquitoNetChanged,
     required this.glassColorController,
+    required this.positionController,
+    required this.locationController,
+    required this.systemController,
+    required this.profileColorController,
+    required this.meshTypeController,
+    required this.lockingController,
+    required this.handleColorController,
+    required this.itemRemarksController,
     required this.widthController,
     required this.heightController,
     required this.rateController,
+    required this.unitPriceController,
     required this.selectedUnit,
     required this.onUnitChanged,
+    required this.selectedMeasurement,
+    required this.onMeasurementChanged,
+    required this.hasGrill,
+    required this.onHasGrillChanged,
+    required this.grillOrientation,
+    required this.onGrillOrientationChanged,
+    required this.grillPipeController,
+    required this.pvcCountController,
     this.productError,
     this.dimensionError,
     this.rateError,
@@ -46,11 +86,27 @@ class _ProductSelectionWidgetState extends State<ProductSelectionWidget> {
   bool _isDropdownOpen = false;
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _filteredProducts = [];
+  bool _isZHydrolic = false;
 
   @override
   void initState() {
     super.initState();
     _filteredProducts = widget.products;
+    _isZHydrolic = widget.selectedProduct != null &&
+        (widget.selectedProduct!['name'] == 'Z Hydrolic');
+  }
+
+  @override
+  void didUpdateWidget(covariant ProductSelectionWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _isZHydrolic = widget.selectedProduct != null &&
+        (widget.selectedProduct!['name'] == 'Z Hydrolic');
+    // ensure pvc count is set to 1 when Z Hydrolic is selected
+    if (_isZHydrolic) {
+      try {
+        widget.pvcCountController.text = '1';
+      } catch (_) {}
+    }
   }
 
   void _filterProducts(String query) {
@@ -94,154 +150,143 @@ class _ProductSelectionWidgetState extends State<ProductSelectionWidget> {
             ),
             SizedBox(height: 2.h),
 
-            // Mosquito Net Option (conditional)
-            if (_shouldShowMosquitoOption(widget.selectedProduct)) ...[
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text('Add Mosquito Net'),
-                value: widget.hasMosquitoNet,
-                onChanged: (val) {
-                  if (val != null) widget.onMosquitoNetChanged(val);
+            // Top Category Selection
+            DropdownButtonFormField<String>(
+              value: widget.selectedTopCategory,
+              items: widget.topCategories
+                  .map((category) => DropdownMenuItem<String>(
+                        value: category,
+                        child: Text(category),
+                      ))
+                  .toList(),
+              onChanged: widget.onTopCategoryChanged,
+              decoration: InputDecoration(
+                labelText: 'Select Category *',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.category),
+              ),
+            ),
+            SizedBox(height: 2.h),
+
+            DropdownButtonFormField<int>(
+              value: widget.selectedProduct != null
+                  ? widget.selectedProduct!['id'] as int
+                  : null,
+              items: widget.products
+                  .where((p) => p['category'] == 'Main')
+                  .map((product) => DropdownMenuItem<int>(
+                        value: product['id'] as int,
+                        child: Text(product['name']),
+                      ))
+                  .toList(),
+              onChanged: (productId) {
+                if (productId != null) {
+                  final selected =
+                      widget.products.firstWhere((p) => p['id'] == productId);
+                  widget.onProductSelected(selected);
+                  // If the product typically includes a mosquito/slider net, default checkbox to true
+                  try {
+                    if (_shouldShowMosquitoOption(selected)) {
+                      widget.onMosquitoNetChanged(true);
+                    }
+                  } catch (_) {}
+                  // If Z Hydrolic is selected, enforce a single window (no partitions)
+                  // For Dumal / Z openable default to 2 panes so preview shows partitions
+                  setState(() {
+                    _isZHydrolic = selected['name'] == 'Z Hydrolic';
+                    if (_isZHydrolic) {
+                      try {
+                        widget.pvcCountController.text = '1';
+                      } catch (_) {}
+                    } else if (selected['name'] == 'Dumal' ||
+                        selected['name'] == 'Z openable') {
+                      try {
+                        final cur = widget.pvcCountController.text.trim();
+                        if (cur.isEmpty || cur == '1') {
+                          widget.pvcCountController.text = '2';
+                        }
+                      } catch (_) {}
+                    }
+                  });
+                }
+              },
+              decoration: InputDecoration(
+                labelText: 'Select Main Product *',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            SizedBox(height: 2.h),
+
+            if (widget.selectedProduct != null &&
+                widget.selectedProduct!['name'] == 'Dumal') ...[
+              DropdownButtonFormField<String>(
+                // Show currently selected subtype if present on the selectedProduct
+                value: widget.selectedProduct != null
+                    ? widget.selectedProduct!['selectedSubtype'] as String?
+                    : null,
+                items: (widget.selectedProduct!['subtypes'] as List? ?? [])
+                    .map<DropdownMenuItem<String>>(
+                        (sub) => DropdownMenuItem<String>(
+                              value: sub['name'] as String,
+                              child: Text(sub['name'] as String),
+                            ))
+                    .toList(),
+                onChanged: (subtype) {
+                  if (subtype == null) return;
+                  // Copy the selected product and add/update the selectedSubtype
+                  final updated =
+                      Map<String, dynamic>.from(widget.selectedProduct!);
+                  updated['selectedSubtype'] = subtype;
+                  widget.onProductSelected(updated);
+                  // If subtype name contains 'net' default mosquito net option
+                  try {
+                    if (subtype.toString().toLowerCase().contains('net')) {
+                      widget.onMosquitoNetChanged(true);
+                    }
+                  } catch (_) {}
                 },
+                decoration: InputDecoration(
+                  labelText: 'Select Dumal Subtype *',
+                  border: OutlineInputBorder(),
+                ),
               ),
               SizedBox(height: 2.h),
             ],
 
-            // Product Dropdown
-            GestureDetector(
-              onTap: () {
-                setState(() {
-                  _isDropdownOpen = !_isDropdownOpen;
-                });
-              },
-              child: Container(
-                width: double.infinity,
-                padding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 3.h),
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: widget.productError != null
-                        ? AppTheme.lightTheme.colorScheme.error
-                        : AppTheme.lightTheme.colorScheme.outline,
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.inventory_2_outlined,
-                      color: AppTheme.lightTheme.colorScheme.primary,
-                    ),
-                    SizedBox(width: 3.w),
-                    Expanded(
-                      child: Text(
-                        widget.selectedProduct?['name'] ?? 'Select Product *',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: widget.selectedProduct != null
-                                  ? AppTheme.lightTheme.colorScheme.onSurface
-                                  : AppTheme.lightTheme.colorScheme.onSurface
-                                      .withValues(alpha: 0.6),
-                            ),
-                      ),
-                    ),
-                    Icon(
-                      _isDropdownOpen ? Icons.expand_less : Icons.expand_more,
-                      color: AppTheme.lightTheme.colorScheme.onSurface,
-                    ),
-                  ],
+            if (widget.selectedProduct != null &&
+                widget.selectedProduct!['name'] == 'Z openable') ...[
+              DropdownButtonFormField<String>(
+                value: widget.selectedProduct != null
+                    ? widget.selectedProduct!['selectedSubtype'] as String?
+                    : null,
+                items: (widget.selectedProduct!['subtypes'] as List? ?? [])
+                    .map<DropdownMenuItem<String>>(
+                        (sub) => DropdownMenuItem<String>(
+                              value: sub['name'] as String,
+                              child: Text(sub['name'] as String),
+                            ))
+                    .toList(),
+                onChanged: (subtype) {
+                  if (subtype == null) return;
+                  final updated =
+                      Map<String, dynamic>.from(widget.selectedProduct!);
+                  updated['selectedSubtype'] = subtype;
+                  widget.onProductSelected(updated);
+                  try {
+                    if (subtype.toString().toLowerCase().contains('net')) {
+                      widget.onMosquitoNetChanged(true);
+                    }
+                  } catch (_) {}
+                },
+                decoration: InputDecoration(
+                  labelText: 'Select Z Openable Subtype *',
+                  border: OutlineInputBorder(),
                 ),
               ),
-            ),
-
-            if (widget.productError != null)
-              Padding(
-                padding: EdgeInsets.only(top: 0.5.h, left: 3.w),
-                child: Text(
-                  widget.productError!,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.lightTheme.colorScheme.error,
-                      ),
-                ),
-              ),
-
-            // Dropdown List
-            if (_isDropdownOpen) ...[
-              SizedBox(height: 1.h),
-              Container(
-                constraints: BoxConstraints(maxHeight: 30.h),
-                decoration: BoxDecoration(
-                  border: Border.all(
-                      color: AppTheme.lightTheme.colorScheme.outline),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  children: [
-                    // Search Field
-                    Padding(
-                      padding: EdgeInsets.all(2.w),
-                      child: TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: 'Search products...',
-                          prefixIcon: Icon(Icons.search),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          contentPadding: EdgeInsets.symmetric(
-                              horizontal: 3.w, vertical: 1.h),
-                        ),
-                        onChanged: _filterProducts,
-                      ),
-                    ),
-                    // Product List
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: _filteredProducts.length,
-                        itemBuilder: (context, index) {
-                          final product = _filteredProducts[index];
-                          return ListTile(
-                            leading: Container(
-                              width: 10.w,
-                              height: 10.w,
-                              decoration: BoxDecoration(
-                                color: _getCategoryColor(
-                                    product['category'] as String),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Icon(
-                                _getCategoryIcon(product['category'] as String),
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                            ),
-                            title: Text(
-                              product['name'] as String,
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                            subtitle: Text(
-                              '${product['category']} • \$${(product['rate'] as double).toStringAsFixed(2)}/sq ft',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            onTap: () {
-                              widget.onProductSelected(product);
-                              widget.rateController.text =
-                                  (product['rate'] as double)
-                                      .toStringAsFixed(2);
-                              setState(() {
-                                _isDropdownOpen = false;
-                                _searchController.clear();
-                                _filteredProducts = widget.products;
-                              });
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              SizedBox(height: 2.h),
             ],
 
-            SizedBox(height: 2.h),
+            // ...existing code...
 
             // Dimensions Section
             Row(
@@ -305,7 +350,7 @@ class _ProductSelectionWidgetState extends State<ProductSelectionWidget> {
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       value: widget.selectedUnit,
-                      items: ['inches', 'cm', 'feet'].map((unit) {
+                      items: ['inches', 'cm', 'feet', 'mm'].map((unit) {
                         return DropdownMenuItem(
                           value: unit,
                           child: Text(unit),
@@ -324,11 +369,38 @@ class _ProductSelectionWidgetState extends State<ProductSelectionWidget> {
 
             SizedBox(height: 2.h),
 
+            // Measurement type dropdown (Sq Ft vs Running Ft)
+            Row(children: [
+              Text('Measure:', style: Theme.of(context).textTheme.bodyMedium),
+              SizedBox(width: 3.w),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 2.w, vertical: 0.8.h),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                      color: AppTheme.lightTheme.colorScheme.outline),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: widget.selectedMeasurement,
+                    items: [
+                      DropdownMenuItem(value: 'sqft', child: Text('Sq Ft')),
+                      DropdownMenuItem(
+                          value: 'runningft', child: Text('Running Ft')),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) widget.onMeasurementChanged(v);
+                    },
+                  ),
+                ),
+              ),
+            ]),
+
             // Rate Field
             TextFormField(
               controller: widget.rateController,
               decoration: InputDecoration(
-                labelText: 'Rate per sq ft *',
+                labelText: 'Unit Price (₹) *',
                 hintText: '0.00',
                 prefixIcon: Icon(
                   Icons.attach_money,
@@ -344,22 +416,237 @@ class _ProductSelectionWidgetState extends State<ProductSelectionWidget> {
             ),
             SizedBox(height: 2.h),
 
-            // Glass color input (free text) for glass/window products
-            if (_shouldShowGlassColorField(widget.selectedProduct)) ...[
-              TextFormField(
-                controller: widget.glassColorController,
-                decoration: InputDecoration(
-                  labelText: 'Glass Color',
-                  hintText: 'e.g., Clear / Tinted / Frosted',
-                  prefixIcon: Icon(
-                    Icons.color_lens,
-                    color: AppTheme.lightTheme.colorScheme.primary,
+            // Unit Price Field (editable by user)
+            // TextFormField(
+            //   controller: widget.unitPriceController,
+            //   decoration: InputDecoration(
+            //     labelText: 'Unit Price *',
+            //     hintText: '0.00',
+            //     prefixIcon: Icon(
+            //       Icons.price_check,
+            //       color: AppTheme.lightTheme.colorScheme.primary,
+            //     ),
+            //   ),
+            //   keyboardType: TextInputType.numberWithOptions(decimal: true),
+            //   textInputAction: TextInputAction.done,
+            //   inputFormatters: [
+            //     FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+            //   ],
+            // ),
+            // SizedBox(height: 2.h),
+
+            // Add Grill option - responsive layout to avoid overflow on small screens
+            // Grill options row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Checkbox(
+                  value: widget.hasGrill,
+                  onChanged: (v) {
+                    if (v != null) widget.onHasGrillChanged(v);
+                  },
+                ),
+                SizedBox(width: 2.w),
+                Text('Add Grill',
+                    style: Theme.of(context).textTheme.bodyMedium),
+                if (widget.hasGrill) ...[
+                  SizedBox(width: 3.w),
+                  Container(
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 2.w, vertical: 0.6.h),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                          color: AppTheme.lightTheme.colorScheme.outline),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: widget.grillOrientation,
+                        items: [
+                          DropdownMenuItem(
+                              value: 'horizontal', child: Text('Horizontal')),
+                          DropdownMenuItem(
+                              value: 'vertical', child: Text('Vertical')),
+                        ],
+                        onChanged: (s) {
+                          if (s != null) widget.onGrillOrientationChanged(s);
+                        },
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 3.w),
+                  SizedBox(
+                    width: 28.w,
+                    child: TextFormField(
+                      controller: widget.grillPipeController,
+                      decoration: InputDecoration(
+                        labelText: 'Pipe Count',
+                        hintText: 'e.g., 3',
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+
+            // PVC window count row (separate line)
+            SizedBox(height: 2.h),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text('Window Count:'),
+                SizedBox(width: 2.w),
+                SizedBox(
+                  width: 20.w,
+                  child: TextFormField(
+                    controller: widget.pvcCountController,
+                    decoration: InputDecoration(hintText: '1'),
+                    keyboardType: TextInputType.number,
+                    readOnly: _isZHydrolic,
+                    enabled: !_isZHydrolic,
                   ),
                 ),
-                textInputAction: TextInputAction.next,
+              ],
+            ),
+            SizedBox(height: 2.h),
+
+            // Mosquito Net option - shown for all products now
+            Row(
+              children: [
+                Checkbox(
+                  value: widget.hasMosquitoNet,
+                  onChanged: (v) {
+                    if (v != null) widget.onMosquitoNetChanged(v);
+                  },
+                ),
+                SizedBox(width: 2.w),
+                Text('Sliding Net',
+                    style: Theme.of(context).textTheme.bodyMedium),
+              ],
+            ),
+            SizedBox(height: 2.h),
+
+            // Glass color input (free text) - shown for all products now
+
+            // Additional metadata fields (Position, Location, System...)
+            // TextFormField(
+            //   controller: widget.positionController,
+            //   decoration: InputDecoration(
+            //     labelText: 'Position (optional)',
+            //     hintText: 'e.g., 1, 2, 3',
+            //     prefixIcon: Icon(Icons.pin_drop,
+            //         color: AppTheme.lightTheme.colorScheme.primary),
+            //   ),
+            //   keyboardType: TextInputType.number,
+            //   textInputAction: TextInputAction.next,
+            // ),
+            // SizedBox(height: 2.h),
+
+            TextFormField(
+              controller: widget.locationController,
+              decoration: InputDecoration(
+                labelText: 'Location',
+                hintText: 'e.g., Living Room / Kitchen',
+                prefixIcon: Icon(Icons.location_on,
+                    color: AppTheme.lightTheme.colorScheme.primary),
               ),
-              SizedBox(height: 2.h),
-            ],
+              textInputAction: TextInputAction.next,
+            ),
+            SizedBox(height: 2.h),
+
+            // TextFormField(
+            //   controller: widget.systemController,
+            //   decoration: InputDecoration(
+            //     labelText: 'Profile System',
+            //     hintText: 'e.g., 2-track / 3-track',
+            //     prefixIcon: Icon(Icons.settings,
+            //         color: AppTheme.lightTheme.colorScheme.primary),
+            //   ),
+            //   textInputAction: TextInputAction.next,
+            // ),
+            // SizedBox(height: 2.h),
+
+            Row(children: [
+              Expanded(
+                child: TextFormField(
+                  controller: widget.profileColorController,
+                  decoration: InputDecoration(
+                    labelText: 'Profile Color',
+                    prefixIcon: Icon(Icons.format_paint,
+                        color: AppTheme.lightTheme.colorScheme.primary),
+                  ),
+                  textInputAction: TextInputAction.next,
+                ),
+              ),
+              SizedBox(width: 2.w),
+              Expanded(
+                child: TextFormField(
+                  controller: widget.meshTypeController,
+                  decoration: InputDecoration(
+                    labelText: 'Mesh Type',
+                    prefixIcon: Icon(Icons.grid_view,
+                        color: AppTheme.lightTheme.colorScheme.primary),
+                  ),
+                  textInputAction: TextInputAction.next,
+                ),
+              ),
+            ]),
+            SizedBox(height: 2.h),
+            TextFormField(
+              controller: widget.glassColorController,
+              decoration: InputDecoration(
+                labelText: 'Glass Color',
+                hintText: 'e.g., Clear / Tinted / Frosted',
+                prefixIcon: Icon(
+                  Icons.color_lens,
+                  color: AppTheme.lightTheme.colorScheme.primary,
+                ),
+              ),
+              textInputAction: TextInputAction.next,
+            ),
+            SizedBox(height: 2.h),
+
+            Row(children: [
+              Expanded(
+                child: TextFormField(
+                  controller: widget.lockingController,
+                  decoration: InputDecoration(
+                    labelText: 'Locking',
+                    prefixIcon: Icon(Icons.lock,
+                        color: AppTheme.lightTheme.colorScheme.primary),
+                  ),
+                  textInputAction: TextInputAction.next,
+                ),
+              ),
+              SizedBox(width: 2.w),
+              Expanded(
+                child: TextFormField(
+                  controller: widget.handleColorController,
+                  decoration: InputDecoration(
+                    labelText: 'Handle Color',
+                    prefixIcon: Icon(Icons.color_lens,
+                        color: AppTheme.lightTheme.colorScheme.primary),
+                  ),
+                  textInputAction: TextInputAction.next,
+                ),
+              ),
+            ]),
+            SizedBox(height: 2.h),
+
+            TextFormField(
+              controller: widget.itemRemarksController,
+              decoration: InputDecoration(
+                labelText: 'Item Remarks',
+                hintText: 'Optional notes for this item',
+                prefixIcon: Icon(Icons.note,
+                    color: AppTheme.lightTheme.colorScheme.primary),
+              ),
+              textInputAction: TextInputAction.done,
+            ),
+            SizedBox(height: 2.h),
           ],
         ),
       ),

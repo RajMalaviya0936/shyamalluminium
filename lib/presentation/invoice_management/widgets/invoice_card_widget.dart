@@ -174,7 +174,7 @@ class InvoiceCardWidget extends StatelessWidget {
                           ),
                           SizedBox(height: 0.5.h),
                           Text(
-                            '\$${amount.toStringAsFixed(2)}',
+                            '₹${amount.toStringAsFixed(2)}',
                             style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w600,
                               color: colorScheme.primary,

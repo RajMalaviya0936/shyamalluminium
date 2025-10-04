@@ -1,4 +1,4 @@
-package com.invoice_generator_pro.app
+package com.shyam_window.app
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.plugins.GeneratedPluginRegistrant

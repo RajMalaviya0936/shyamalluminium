@@ -206,14 +206,14 @@ class InvoiceItemsListWidget extends StatelessWidget {
                           child: _buildItemDetail(
                             context,
                             'Rate',
-                            '\$${_formatAmount(rate)}',
+                            '₹${_formatAmount(rate)}',
                           ),
                         ),
                         Expanded(
                           child: _buildItemDetail(
                             context,
                             'Total',
-                            '\$${_formatAmount(total)}',
+                            '₹${_formatAmount(total)}',
                             isTotal: true,
                           ),
                         ),

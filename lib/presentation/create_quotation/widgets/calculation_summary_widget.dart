@@ -6,11 +6,17 @@ import '../../../core/app_export.dart';
 class CalculationSummaryWidget extends StatefulWidget {
   final List<Map<String, dynamic>> products;
   final double gstRate;
+  final bool gstEnabled;
+  final double discountPercent;
+  final double discountAmount;
 
   const CalculationSummaryWidget({
     super.key,
     required this.products,
     this.gstRate = 18.0,
+    this.gstEnabled = false,
+    this.discountPercent = 0.0,
+    this.discountAmount = 0.0,
   });
 
   @override
@@ -28,8 +34,13 @@ class _CalculationSummaryWidgetState extends State<CalculationSummaryWidget> {
     }
 
     final subtotal = _calculateSubtotal();
-    final gstAmount = subtotal * (widget.gstRate / 100);
-    final total = subtotal + gstAmount;
+    final discount = widget.discountAmount > 0
+        ? widget.discountAmount
+        : subtotal * (widget.discountPercent / 100);
+    final gst = widget.gstEnabled
+        ? (subtotal - discount) * (widget.gstRate / 100)
+        : 0.0;
+    final total = subtotal - discount + gst;
 
     return Card(
       margin: EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.h),
@@ -87,7 +98,7 @@ class _CalculationSummaryWidgetState extends State<CalculationSummaryWidget> {
                         ),
                   ),
                   Text(
-                    '\$${total.toStringAsFixed(2)}',
+                    '₹${total.toStringAsFixed(2)}',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w700,
                           color: AppTheme.lightTheme.colorScheme.primary,
@@ -135,7 +146,7 @@ class _CalculationSummaryWidgetState extends State<CalculationSummaryWidget> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    product['name'] as String,
+                                    _getDisplayName(product),
                                     style: Theme.of(context)
                                         .textTheme
                                         .bodyMedium
@@ -144,7 +155,7 @@ class _CalculationSummaryWidgetState extends State<CalculationSummaryWidget> {
                                         ),
                                   ),
                                   Text(
-                                    '${area.toStringAsFixed(2)} sq ft × \$${(product['rate'] as double).toStringAsFixed(2)}',
+                                    '${area.toStringAsFixed(2)} sq ft',
                                     style: Theme.of(context)
                                         .textTheme
                                         .bodySmall
@@ -158,7 +169,7 @@ class _CalculationSummaryWidgetState extends State<CalculationSummaryWidget> {
                               ),
                             ),
                             Text(
-                              '\$${productTotal.toStringAsFixed(2)}',
+                              '₹${productTotal.toStringAsFixed(2)}',
                               style: Theme.of(context)
                                   .textTheme
                                   .bodyMedium
@@ -180,7 +191,7 @@ class _CalculationSummaryWidgetState extends State<CalculationSummaryWidget> {
                       SizedBox(height: 1.h),
                     ],
 
-                    // Subtotal
+                    // Subtotal and adjustments
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -192,7 +203,7 @@ class _CalculationSummaryWidgetState extends State<CalculationSummaryWidget> {
                                   ),
                         ),
                         Text(
-                          '\$${subtotal.toStringAsFixed(2)}',
+                          '₹${subtotal.toStringAsFixed(2)}',
                           style:
                               Theme.of(context).textTheme.bodyMedium?.copyWith(
                                     fontWeight: FontWeight.w600,
@@ -202,36 +213,48 @@ class _CalculationSummaryWidgetState extends State<CalculationSummaryWidget> {
                     ),
                     SizedBox(height: 1.h),
 
-                    // GST
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'GST (${widget.gstRate.toStringAsFixed(0)}%)',
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                        ),
-                        Text(
-                          '\$${gstAmount.toStringAsFixed(2)}',
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                        ),
-                      ],
-                    ),
+                    // Discount row
+                    if (widget.discountAmount > 0 || widget.discountPercent > 0)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Discount',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(fontWeight: FontWeight.w500)),
+                          Text('- ₹${discount.toStringAsFixed(2)}',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600)),
+                        ],
+                      ),
                     SizedBox(height: 1.h),
-
                     Divider(
                       color: AppTheme.lightTheme.colorScheme.outline
                           .withValues(alpha: 0.5),
                       thickness: 1.5,
                     ),
                     SizedBox(height: 1.h),
-
-                    // Final Total
+                    // GST row (if enabled) and Final Total
+                    if (widget.gstEnabled)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('GST (${widget.gstRate.toStringAsFixed(2)}%)',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(fontWeight: FontWeight.w500)),
+                          Text('₹${gst.toStringAsFixed(2)}',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    SizedBox(height: 1.h),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -243,7 +266,7 @@ class _CalculationSummaryWidgetState extends State<CalculationSummaryWidget> {
                                   ),
                         ),
                         Text(
-                          '\$${total.toStringAsFixed(2)}',
+                          '₹${total.toStringAsFixed(2)}',
                           style: Theme.of(context)
                               .textTheme
                               .titleMedium
@@ -261,33 +284,33 @@ class _CalculationSummaryWidgetState extends State<CalculationSummaryWidget> {
               SizedBox(height: 2.h),
 
               // Additional Info
-              Container(
-                padding: EdgeInsets.all(3.w),
-                decoration: BoxDecoration(
-                  color: AppTheme.lightTheme.colorScheme.tertiary
-                      .withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    CustomIconWidget(
-                      iconName: 'info',
-                      color: AppTheme.lightTheme.colorScheme.tertiary,
-                      size: 16,
-                    ),
-                    SizedBox(width: 2.w),
-                    Expanded(
-                      child: Text(
-                        'All prices are inclusive of GST. Final invoice will be generated after confirmation.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppTheme.lightTheme.colorScheme.onSurface
-                                  .withValues(alpha: 0.8),
-                            ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              // Container(
+              //   padding: EdgeInsets.all(3.w),
+              //   decoration: BoxDecoration(
+              //     color: AppTheme.lightTheme.colorScheme.tertiary
+              //         .withValues(alpha: 0.1),
+              //     borderRadius: BorderRadius.circular(8),
+              //   ),
+              //   child: Row(
+              //     children: [
+              //       CustomIconWidget(
+              //         iconName: 'info',
+              //         color: AppTheme.lightTheme.colorScheme.tertiary,
+              //         size: 16,
+              //       ),
+              //       SizedBox(width: 2.w),
+              //       Expanded(
+              //         child: Text(
+              //           'All prices are inclusive of GST. Final invoice will be generated after confirmation.',
+              //           style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              //                 color: AppTheme.lightTheme.colorScheme.onSurface
+              //                     .withValues(alpha: 0.8),
+              //               ),
+              //         ),
+              //       ),
+              //     ],
+              //   ),
+              // ),
             ],
           ],
         ),
@@ -309,9 +332,12 @@ class _CalculationSummaryWidgetState extends State<CalculationSummaryWidget> {
   }
 
   double _calculateArea(double width, double height, String unit) {
+    // If unit is mm, use the formula: area (sq ft) = (width * height) / 92903.04
+    if (unit == 'mm') {
+      return (width * height) / 92903.04;
+    }
     double widthInFeet = width;
     double heightInFeet = height;
-
     // Convert to feet if necessary
     switch (unit) {
       case 'inches':
@@ -323,7 +349,35 @@ class _CalculationSummaryWidgetState extends State<CalculationSummaryWidget> {
         heightInFeet = height / 30.48;
         break;
     }
-
     return widthInFeet * heightInFeet;
+  }
+
+  // Mirror ProductListWidget._getDisplayName behavior for summary display
+  String _getDisplayName(Map<String, dynamic> product) {
+    final displayName = product['displayName'] as String?;
+    if (displayName != null && displayName.isNotEmpty) return displayName;
+
+    final name = (product['name'] as String?)?.trim() ?? '';
+
+    dynamic subtypeRaw = product['subtype'] ?? product['subtypes'];
+    String subtypeStr = '';
+    if (subtypeRaw != null) {
+      if (subtypeRaw is String) {
+        subtypeStr = subtypeRaw.trim();
+      } else if (subtypeRaw is List) {
+        subtypeStr = subtypeRaw
+            .map((e) => e == null ? '' : e.toString().trim())
+            .where((s) => s.isNotEmpty)
+            .join(' ');
+      } else {
+        subtypeStr = subtypeRaw.toString().trim();
+      }
+    }
+
+    if (subtypeStr.isNotEmpty) {
+      return name.isNotEmpty ? '$name $subtypeStr' : subtypeStr;
+    }
+
+    return name;
   }
 }

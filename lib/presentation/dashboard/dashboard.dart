@@ -54,7 +54,7 @@ class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
       "type": "invoice",
       "customerName": "John Smith Construction",
       "date": "Aug 19, 2025",
-      "amount": "\$2,450.00",
+      "amount": "₹2,450.00",
       "status": "paid",
     },
     {
@@ -62,7 +62,7 @@ class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
       "type": "quotation",
       "customerName": "Sarah Johnson Interiors",
       "date": "Aug 18, 2025",
-      "amount": "\$1,890.00",
+      "amount": "₹1,890.00",
       "status": "pending",
     },
     {
@@ -70,7 +70,7 @@ class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
       "type": "invoice",
       "customerName": "Mike Davis Builders",
       "date": "Aug 17, 2025",
-      "amount": "\$3,200.00",
+      "amount": "₹3,200.00",
       "status": "overdue",
     },
     {
@@ -78,7 +78,7 @@ class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
       "type": "quotation",
       "customerName": "Lisa Chen Designs",
       "date": "Aug 16, 2025",
-      "amount": "\$1,650.00",
+      "amount": "₹1,650.00",
       "status": "approved",
     },
     {
@@ -86,7 +86,7 @@ class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
       "type": "invoice",
       "customerName": "Robert Wilson Homes",
       "date": "Aug 15, 2025",
-      "amount": "\$2,100.00",
+      "amount": "₹2,100.00",
       "status": "paid",
     },
   ];
@@ -189,7 +189,7 @@ class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
       backgroundColor: colorScheme.surface,
       appBar: AppBar(
         title: Text(
-          'Shyam Alluminium',
+          'Shyam Aluminium',
           style: theme.textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w700,
             color: colorScheme.onSurface,
@@ -300,47 +300,47 @@ class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
               ),
 
               // Recent Activity Section
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 2.h),
-                  child: Text(
-                    'Recent Activity',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                ),
-              ),
+              // SliverToBoxAdapter(
+              //   child: Padding(
+              //     padding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 2.h),
+              //     child: Text(
+              //       'Recent Activity',
+              //       style: theme.textTheme.titleLarge?.copyWith(
+              //         fontWeight: FontWeight.w600,
+              //         color: colorScheme.onSurface,
+              //       ),
+              //     ),
+              //   ),
+              // ),
 
-              // Recent Activity List or Empty State
-              _recentActivities.isEmpty
-                  ? SliverFillRemaining(
-                      child: EmptyStateWidget(
-                        title: 'No Recent Activity',
-                        description:
-                            'Start by creating your first quotation or adding products to your inventory.',
-                        buttonText: 'Create Quotation',
-                        iconName: 'description',
-                        onButtonPressed: () =>
-                            _navigateToRoute('/create-quotation'),
-                      ),
-                    )
-                  : SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          if (index >= _recentActivities.length) return null;
-                          final activity = _recentActivities[index];
-                          return RecentActivityItemWidget(
-                            activity: activity,
-                            onTap: () => _handleActivityTap(activity),
-                            onEdit: () => _handleActivityEdit(activity),
-                            onShare: () => _handleActivityShare(activity),
-                          );
-                        },
-                        childCount: _recentActivities.length,
-                      ),
-                    ),
+              // // Recent Activity List or Empty State
+              // _recentActivities.isEmpty
+              //     ? SliverFillRemaining(
+              //         child: EmptyStateWidget(
+              //           title: 'No Recent Activity',
+              //           description:
+              //               'Start by creating your first quotation or adding products to your inventory.',
+              //           buttonText: 'Create Quotation',
+              //           iconName: 'description',
+              //           onButtonPressed: () =>
+              //               _navigateToRoute('/create-quotation'),
+              //         ),
+              //       )
+              //     : SliverList(
+              //         delegate: SliverChildBuilderDelegate(
+              //           (context, index) {
+              //             if (index >= _recentActivities.length) return null;
+              //             final activity = _recentActivities[index];
+              //             return RecentActivityItemWidget(
+              //               activity: activity,
+              //               onTap: () => _handleActivityTap(activity),
+              //               onEdit: () => _handleActivityEdit(activity),
+              //               onShare: () => _handleActivityShare(activity),
+              //             );
+              //           },
+              //           childCount: _recentActivities.length,
+              //         ),
+              //       ),
 
               // Bottom spacing
               SliverToBoxAdapter(

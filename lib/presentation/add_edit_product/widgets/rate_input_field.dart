@@ -25,7 +25,7 @@ class RateInputField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Rate per sq ft (\$) *',
+          'Rate per sq ft (₹) *',
           style: theme.textTheme.labelLarge?.copyWith(
             color: theme.colorScheme.onSurface,
             fontWeight: FontWeight.w500,

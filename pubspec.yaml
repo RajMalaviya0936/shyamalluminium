@@ -34,10 +34,7 @@ dependencies:
   printing: ^5.14.2
 
   universal_html: ^2.2.4
-  firebase_core: ^2.32.0
-  firebase_auth: ^4.6.0
-  firebase_database: ^10.5.7
-  firebase_storage: ^11.6.5
+  # firebase packages removed per request (not needed for Windows build)
 dev_dependencies:
   flutter_test:    # CRITICAL: Required for Flutter project testing - DO NOT REMOVE
     sdk: flutter   # CRITICAL: Required for Flutter project testing - DO NOT REMOVE
@@ -48,6 +45,7 @@ flutter:
   assets:
     - assets/
     - assets/images/
+    - assets/fonts/NotoSans-Regular.ttf
   # CRITICAL ASSET MANAGEMENT RULES:
   # - DO NOT ADD NEW ASSET DIRECTORIES (assets/svg/, assets/icons/, etc.)
   # - ONLY USE EXISTING AND ITEMS AVAILABLE IN THE DIRECTORIES LISTED ABOVE (assets/, assets/images/)

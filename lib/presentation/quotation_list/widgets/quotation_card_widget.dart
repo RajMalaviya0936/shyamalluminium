@@ -182,7 +182,7 @@ class QuotationCardWidget extends StatelessWidget {
                           ),
                           SizedBox(height: 0.5.h),
                           Text(
-                            '\$${totalAmount.toStringAsFixed(2)}',
+                            '₹${totalAmount.toStringAsFixed(2)}',
                             style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w600,
                               color: colorScheme.primary,

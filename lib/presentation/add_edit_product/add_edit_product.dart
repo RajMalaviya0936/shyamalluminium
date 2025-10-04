@@ -153,7 +153,7 @@ class _AddEditProductState extends State<AddEditProduct> {
         isValid = false;
       } else if (rate > 999999.99) {
         setState(() {
-          _rateError = 'Rate cannot exceed \$999,999.99';
+          _rateError = 'Rate cannot exceed ₹999,999.99';
         });
         isValid = false;
       }

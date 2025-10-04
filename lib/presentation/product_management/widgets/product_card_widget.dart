@@ -177,7 +177,7 @@ class ProductCardWidget extends StatelessWidget {
         ),
         SizedBox(height: 1.h),
         Text(
-          "\$${(product["price"] as double? ?? 0.0).toStringAsFixed(2)}",
+          "₹${(product["price"] as double? ?? 0.0).toStringAsFixed(2)}",
           style: theme.textTheme.titleMedium?.copyWith(
             color: theme.colorScheme.primary,
             fontWeight: FontWeight.w700,

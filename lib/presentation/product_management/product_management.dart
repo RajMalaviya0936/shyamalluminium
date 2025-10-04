@@ -8,6 +8,8 @@ import './widgets/category_filter_chip_widget.dart';
 import './widgets/empty_state_widget.dart';
 import './widgets/product_card_widget.dart';
 import './widgets/search_bar_widget.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class ProductManagement extends StatefulWidget {
   const ProductManagement({super.key});
@@ -35,105 +37,50 @@ class _ProductManagementState extends State<ProductManagement> {
     'Glass'
   ];
 
-  // Mock product data
-  final List<Map<String, dynamic>> _allProducts = [
-    {
-      "id": 1,
-      "name": "Aluminium Sliding Window",
-      "category": "Aluminium",
-      "price": 299.99,
-      "description":
-          "High-quality aluminium sliding window with double glazing and weather sealing.",
-      "image":
-          "https://images.pexels.com/photos/1571460/pexels-photo-1571460.jpeg?auto=compress&cs=tinysrgb&w=800",
-      "inStock": true,
-      "stockQuantity": 25,
-    },
-    {
-      "id": 2,
-      "name": "PVC Kitchen Cabinet Door",
-      "category": "PVC",
-      "price": 89.50,
-      "description":
-          "Durable PVC cabinet door with modern finish, perfect for kitchen renovations.",
-      "image":
-          "https://images.pexels.com/photos/2724749/pexels-photo-2724749.jpeg?auto=compress&cs=tinysrgb&w=800",
-      "inStock": true,
-      "stockQuantity": 42,
-    },
-    {
-      "id": 3,
-      "name": "Wooden Entry Door",
-      "category": "Wooden",
-      "price": 450.00,
-      "description":
-          "Solid wood entry door with decorative glass panel and premium hardware.",
-      "image":
-          "https://images.pexels.com/photos/1571463/pexels-photo-1571463.jpeg?auto=compress&cs=tinysrgb&w=800",
-      "inStock": true,
-      "stockQuantity": 8,
-    },
-    {
-      "id": 4,
-      "name": "Tempered Glass Panel",
-      "category": "Glass",
-      "price": 125.75,
-      "description":
-          "Safety tempered glass panel suitable for doors, windows, and partitions.",
-      "image":
-          "https://images.pexels.com/photos/1571468/pexels-photo-1571468.jpeg?auto=compress&cs=tinysrgb&w=800",
-      "inStock": true,
-      "stockQuantity": 15,
-    },
-    {
-      "id": 5,
-      "name": "Aluminium Bi-fold Door",
-      "category": "Aluminium",
-      "price": 850.00,
-      "description":
-          "Premium aluminium bi-fold door system with smooth operation and modern design.",
-      "image":
-          "https://images.pexels.com/photos/1571461/pexels-photo-1571461.jpeg?auto=compress&cs=tinysrgb&w=800",
-      "inStock": false,
-      "stockQuantity": 0,
-    },
-    {
-      "id": 6,
-      "name": "PVC Window Frame",
-      "category": "PVC",
-      "price": 180.25,
-      "description":
-          "Energy-efficient PVC window frame with multi-chamber design for superior insulation.",
-      "image":
-          "https://images.pexels.com/photos/2724748/pexels-photo-2724748.jpeg?auto=compress&cs=tinysrgb&w=800",
-      "inStock": true,
-      "stockQuantity": 18,
-    },
-    {
-      "id": 7,
-      "name": "Wooden Wardrobe Door",
-      "category": "Wooden",
-      "price": 220.00,
-      "description":
-          "Elegant wooden wardrobe door with soft-close hinges and natural wood finish.",
-      "image":
-          "https://images.pexels.com/photos/1571464/pexels-photo-1571464.jpeg?auto=compress&cs=tinysrgb&w=800",
-      "inStock": true,
-      "stockQuantity": 12,
-    },
-    {
-      "id": 8,
-      "name": "Glass Shower Door",
-      "category": "Glass",
-      "price": 320.50,
-      "description":
-          "Frameless glass shower door with premium hardware and easy-clean coating.",
-      "image":
-          "https://images.pexels.com/photos/1571469/pexels-photo-1571469.jpeg?auto=compress&cs=tinysrgb&w=800",
-      "inStock": true,
-      "stockQuantity": 6,
-    },
-  ];
+  // Product data from API
+  final List<Map<String, dynamic>> _allProducts = [];
+  @override
+  void initState() {
+    super.initState();
+    _fetchProducts();
+  }
+
+  Future<void> _fetchProducts() async {
+    setState(() {
+      _isRefreshing = true;
+    });
+    try {
+      final response = await http.get(Uri.parse(
+          'https://shyamalluminium.digitalrankweb.tech/api/products'));
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> jsonResp = json.decode(response.body);
+        final List<dynamic> data = jsonResp['data'] ?? [];
+        final products = data.map<Map<String, dynamic>>((item) {
+          return {
+            'id': item['id'],
+            'name': item['name'],
+            'description': item['description'],
+            'price': double.tryParse(item['price'].toString()) ?? 0.0,
+            'category': item['category_id'] == null
+                ? 'Unknown'
+                : item['category_id'].toString(),
+            'created_at': item['created_at'],
+            'updated_at': item['updated_at'],
+          };
+        }).toList();
+        setState(() {
+          _allProducts.clear();
+          _allProducts.addAll(products);
+        });
+      }
+    } catch (e) {
+      print('Error fetching products: $e');
+    } finally {
+      setState(() {
+        _isRefreshing = false;
+      });
+    }
+  }
 
   List<Map<String, dynamic>> get _filteredProducts {
     return _allProducts.where((product) {
@@ -315,17 +262,7 @@ class _ProductManagementState extends State<ProductManagement> {
   }
 
   Future<void> _refreshProducts() async {
-    setState(() {
-      _isRefreshing = true;
-    });
-
-    // Simulate API call delay
-    await Future.delayed(const Duration(seconds: 1));
-
-    setState(() {
-      _isRefreshing = false;
-    });
-
+    await _fetchProducts();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Products refreshed'),
@@ -634,7 +571,7 @@ class _ProductManagementState extends State<ProductManagement> {
                         ),
                         const Spacer(),
                         Text(
-                          "\$${(product["price"] as double? ?? 0.0).toStringAsFixed(2)}",
+                          "₹${(product["price"] as double? ?? 0.0).toStringAsFixed(2)}",
                           style: theme.textTheme.titleSmall?.copyWith(
                             color: colorScheme.primary,
                             fontWeight: FontWeight.w700,

@@ -59,7 +59,7 @@ class CalculationSectionWidget extends StatelessWidget {
             _buildCalculationRow(
               context,
               'Subtotal',
-              '\$${_formatAmount(subtotal)}',
+              '₹${_formatAmount(subtotal)}',
             ),
 
             const SizedBox(height: 12),
@@ -67,7 +67,7 @@ class CalculationSectionWidget extends StatelessWidget {
             _buildCalculationRow(
               context,
               'GST (${gstPercentage.toStringAsFixed(1)}%)',
-              '\$${_formatAmount(tax)}',
+              '₹${_formatAmount(tax)}',
               showPercentage: true,
             ),
 
@@ -109,7 +109,7 @@ class CalculationSectionWidget extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '\$${_formatAmount(total)}',
+                    '₹${_formatAmount(total)}',
                     style: AppTheme.invoiceDataStyle(
                       isLight: theme.brightness == Brightness.light,
                       fontSize: 20,

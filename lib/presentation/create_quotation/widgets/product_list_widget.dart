@@ -18,9 +18,23 @@ class ProductListWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (products.isEmpty) {
-      return const SizedBox.shrink();
+      // Debug print to help diagnose empty list issue
+      debugPrint('ProductListWidget: No products to display');
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.h),
+        child: Center(
+          child: Text(
+            'No products added yet.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+        ),
+      );
     }
 
+    debugPrint('ProductListWidget: Displaying ${products.length} products');
     return Card(
       margin: EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.h),
       child: Padding(
@@ -57,7 +71,6 @@ class ProductListWidget extends StatelessWidget {
                   product['height'] as double,
                   product['unit'] as String,
                 );
-                final total = area * (product['rate'] as double);
 
                 return Dismissible(
                   key: Key('product_$index'),
@@ -71,7 +84,7 @@ class ProductListWidget extends StatelessWidget {
                     ),
                     child: CustomIconWidget(
                       iconName: 'delete',
-                      color: Colors.white,
+                      color: Colors.black,
                       size: 24,
                     ),
                   ),
@@ -114,7 +127,7 @@ class ProductListWidget extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    product['name'] as String,
+                                    _getDisplayName(product),
                                     style: Theme.of(context)
                                         .textTheme
                                         .titleSmall
@@ -124,7 +137,8 @@ class ProductListWidget extends StatelessWidget {
                                   ),
                                   SizedBox(height: 0.5.h),
                                   Text(
-                                    product['category'] as String,
+                                    product['topCategory'] as String? ??
+                                        'General',
                                     style: Theme.of(context)
                                         .textTheme
                                         .bodySmall
@@ -174,17 +188,11 @@ class ProductListWidget extends StatelessWidget {
                               ),
                               SizedBox(height: 1.h),
                               Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment: MainAxisAlignment.start,
                                 children: [
                                   _buildInfoItem(
-                                    'Rate',
-                                    '\$${(product['rate'] as double).toStringAsFixed(2)}/sq ft',
-                                  ),
-                                  _buildInfoItem(
-                                    'Total',
-                                    '\$${total.toStringAsFixed(2)}',
-                                    isTotal: true,
+                                    'Unit Price',
+                                    '₹${(product['unitPrice'] as double? ?? 0.0).toStringAsFixed(2)}',
                                   ),
                                 ],
                               ),
@@ -193,20 +201,44 @@ class ProductListWidget extends StatelessWidget {
                         ),
                         SizedBox(height: 1.h),
                         // Glass color and Mosquito Net indicators for this product
-                        Row(
+                        Wrap(
+                          alignment: WrapAlignment.start,
+                          spacing: 2.w,
+                          runSpacing: 1.h,
                           children: [
+                            if ((product['position'] ?? '') != '')
+                              Chip(
+                                backgroundColor:
+                                    AppTheme.lightTheme.colorScheme.surface,
+                                label: Text(
+                                  'Pos: ${product['position']}',
+                                  style: TextStyle(
+                                    fontSize: 10.sp,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
+                            if ((product['location'] ?? '') != '')
+                              Chip(
+                                backgroundColor:
+                                    AppTheme.lightTheme.colorScheme.surface,
+                                label: Text(
+                                  'Location: ${product['location']}',
+                                  style: TextStyle(
+                                    fontSize: 10.sp,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
                             if ((product['glassColor'] ?? '') != '')
-                              Padding(
-                                padding: EdgeInsets.only(right: 2.w),
-                                child: Chip(
-                                  backgroundColor:
-                                      AppTheme.lightTheme.colorScheme.surface,
-                                  label: Text(
-                                    'Glass: ${product['glassColor']}',
-                                    style: TextStyle(
-                                      fontSize: 10.sp,
-                                      color: Colors.black87,
-                                    ),
+                              Chip(
+                                backgroundColor:
+                                    AppTheme.lightTheme.colorScheme.surface,
+                                label: Text(
+                                  'Glass: ${product['glassColor']}',
+                                  style: TextStyle(
+                                    fontSize: 10.sp,
+                                    color: Colors.black87,
                                   ),
                                 ),
                               ),
@@ -236,6 +268,31 @@ class ProductListWidget extends StatelessWidget {
                                   ],
                                 ),
                               ),
+                            // Profile / Accessories chips
+                            if ((product['profileColor'] ?? '') != '')
+                              Chip(
+                                backgroundColor:
+                                    AppTheme.lightTheme.colorScheme.surface,
+                                label: Text(
+                                  'Profile: ${product['profileColor']}',
+                                  style: TextStyle(
+                                    fontSize: 10.sp,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
+                            if ((product['locking'] ?? '') != '')
+                              Chip(
+                                backgroundColor:
+                                    AppTheme.lightTheme.colorScheme.surface,
+                                label: Text(
+                                  'Locking: ${product['locking']}',
+                                  style: TextStyle(
+                                    fontSize: 10.sp,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ],
@@ -248,6 +305,63 @@ class ProductListWidget extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _getDisplayName(Map<String, dynamic> product) {
+    // Prefer an explicit displayName when available (set at add time).
+    final displayName =
+        (product['displayName'] ?? product['display_name']) as String?;
+    if (displayName != null && displayName.trim().isNotEmpty)
+      return displayName.trim();
+
+    final name = (product['name'] as String?)?.trim() ?? '';
+
+    // Look for subtype in several possible keys used across the app.
+    dynamic subtypeRaw;
+    if (product.containsKey('selectedSubtype')) {
+      subtypeRaw = product['selectedSubtype'];
+    } else if (product.containsKey('selected_subtype')) {
+      subtypeRaw = product['selected_subtype'];
+    } else if (product.containsKey('subtype')) {
+      subtypeRaw = product['subtype'];
+    } else if (product.containsKey('subtypes')) {
+      subtypeRaw = product['subtypes'];
+    } else if (product.containsKey('subtypeName')) {
+      subtypeRaw = product['subtypeName'];
+    } else if (product.containsKey('subtype_name')) {
+      subtypeRaw = product['subtype_name'];
+    }
+
+    String subtypeStr = '';
+    if (subtypeRaw != null) {
+      if (subtypeRaw is String) {
+        subtypeStr = subtypeRaw.trim();
+      } else if (subtypeRaw is Map) {
+        // Map may contain a 'name' or 'title' key
+        subtypeStr =
+            (subtypeRaw['name'] ?? subtypeRaw['title'] ?? '').toString().trim();
+      } else if (subtypeRaw is List) {
+        subtypeStr = subtypeRaw
+            .map((e) {
+              if (e == null) return '';
+              if (e is String) return e.trim();
+              if (e is Map)
+                return (e['name'] ?? e['title'] ?? '').toString().trim();
+              return e.toString().trim();
+            })
+            .where((s) => s.isNotEmpty)
+            .join(' ');
+      } else {
+        subtypeStr = subtypeRaw.toString().trim();
+      }
+    }
+
+    if (subtypeStr.isNotEmpty) {
+      // Use a hyphen for clarity between name and subtype
+      return name.isNotEmpty ? '$name - $subtypeStr' : subtypeStr;
+    }
+
+    return name;
   }
 
   Widget _buildInfoItem(String label, String value, {bool isTotal = false}) {
@@ -278,9 +392,12 @@ class ProductListWidget extends StatelessWidget {
   }
 
   double _calculateArea(double width, double height, String unit) {
+    // If unit is mm, use the formula: area (sq ft) = (width * height) / 92903.04
+    if (unit == 'mm') {
+      return (width * height) / 92903.04;
+    }
     double widthInFeet = width;
     double heightInFeet = height;
-
     // Convert to feet if necessary
     switch (unit) {
       case 'inches':
@@ -292,7 +409,6 @@ class ProductListWidget extends StatelessWidget {
         heightInFeet = height / 30.48;
         break;
     }
-
     return widthInFeet * heightInFeet;
   }
 

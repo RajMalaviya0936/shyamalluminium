@@ -8,6 +8,8 @@ import '../../core/models/quotation.dart' as qmodels;
 import 'package:printing/printing.dart';
 import 'dart:ui' as ui;
 import 'dart:typed_data';
+import 'dart:io' as io;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import './widgets/calculation_summary_widget.dart';
 import './widgets/customer_details_widget.dart';
@@ -30,12 +32,38 @@ class _CreateQuotationState extends State<CreateQuotation> {
   final TextEditingController _widthController = TextEditingController();
   final TextEditingController _heightController = TextEditingController();
   final TextEditingController _rateController = TextEditingController();
+  final TextEditingController _unitPriceController = TextEditingController();
   final TextEditingController _glassColorController = TextEditingController();
+  // New controllers for additional product metadata
+  final TextEditingController _positionController = TextEditingController();
+  final TextEditingController _locationController = TextEditingController();
+  final TextEditingController _systemController = TextEditingController();
+  final TextEditingController _profileColorController = TextEditingController();
+  final TextEditingController _meshTypeController = TextEditingController();
+  final TextEditingController _lockingController = TextEditingController();
+  final TextEditingController _handleColorController = TextEditingController();
+  final TextEditingController _itemRemarksController = TextEditingController();
+  // Grill and PVC controls
+  bool _hasGrill = false;
+  String _grillOrientation = 'horizontal';
+  final TextEditingController _grillPipeController = TextEditingController();
+  final TextEditingController _pvcCountController =
+      TextEditingController(text: '1');
 
   // Form state
+  String? _selectedTopCategory;
   Map<String, dynamic>? _selectedProduct;
-  String _selectedUnit = 'feet';
+  String _selectedUnit = 'mm';
+  String _selectedMeasurement = 'sqft'; // 'sqft' or 'runningft'
   bool _hasMosquitoNet = false;
+  // GST and discount controls
+  bool _gstEnabled = false;
+  final TextEditingController _gstRateController =
+      TextEditingController(text: '18');
+  final TextEditingController _discountPercentController =
+      TextEditingController(text: '0');
+  final TextEditingController _discountAmountController =
+      TextEditingController(text: '0');
   List<Map<String, dynamic>> _addedProducts = [];
   int? _editingIndex;
   final GlobalKey _previewKey = GlobalKey();
@@ -49,80 +77,109 @@ class _CreateQuotationState extends State<CreateQuotation> {
   String? _rateError;
 
   // Mock data
+  final List<String> _topCategories = [
+    'Window',
+    'Door',
+    'Partitions',
+    'Railing',
+    'Bathroom Items',
+    'Kitchen Items',
+  ];
+
   final List<Map<String, dynamic>> _mockProducts = [
+    // Main Category
     {
-      "id": 1,
-      "name": "Aluminium Sliding Door",
-      "category": "Aluminium",
-      "rate": 45.50,
-      "description":
-          "Premium quality aluminium sliding door with smooth operation",
-      "image":
-          "https://images.pexels.com/photos/1571460/pexels-photo-1571460.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1",
+      "id": 101,
+      "name": "Dumal",
+      "category": "Main",
+      "rate": 0.0,
+      "description": "Main category: Dumal",
+      "subtypes": [
+        {"name": "2 track", "rate": 0.0},
+        {"name": "3 track", "rate": 0.0},
+        {"name": "2 shutter glass with 1 shutter net", "rate": 0.0},
+        {"name": "2 with sliding net", "rate": 0.0},
+        {"name": "2 with grill", "rate": 0.0},
+      ],
     },
     {
-      "id": 2,
-      "name": "PVC Sliding Window",
-      "category": "PVC",
-      "rate": 32.75,
-      "description": "Energy efficient PVC sliding window with double glazing",
-      "image":
-          "https://images.pexels.com/photos/1571463/pexels-photo-1571463.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1",
+      "id": 102,
+      "name": "Z openable",
+      "category": "Main",
+      "rate": 0.0,
+      "description": "Main category: Z openable",
+      "subtypes": [
+        {"name": "2 in 1", "rate": 0.0},
+        {"name": "3 in 1", "rate": 0.0},
+      ],
     },
     {
-      "id": 3,
-      "name": "Wooden Main Door",
-      "category": "Wooden",
-      "rate": 65.00,
-      "description": "Solid wood main door with traditional design",
-      "image":
-          "https://images.pexels.com/photos/1571468/pexels-photo-1571468.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1",
+      "id": 103,
+      "name": "Z Hydrolic",
+      "category": "Main",
+      "rate": 0.0,
+      "description": "Main category: Z Hydrolic",
+      "forceSinglePane": true,
+      "subtypes": [],
+    },
+    // Sub Category
+    {
+      "id": 201,
+      "name": "2 track",
+      "category": "Sub",
+      "parent": "Dumal",
+      "rate": 0.0,
+      "description": "Dumal - 2 track",
     },
     {
-      "id": 4,
-      "name": "Glass Partition",
-      "category": "Glass",
-      "rate": 28.90,
-      "description": "Tempered glass partition for modern office spaces",
-      "image":
-          "https://images.pexels.com/photos/1571471/pexels-photo-1571471.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1",
+      "id": 202,
+      "name": "3 track",
+      "category": "Sub",
+      "parent": "Dumal",
+      "rate": 0.0,
+      "description": "Dumal - 3 track",
     },
     {
-      "id": 5,
-      "name": "PVC Kitchen Cupboard",
-      "category": "PVC",
-      "rate": 38.25,
-      "description": "Waterproof PVC kitchen cupboard with modern finish",
-      "image":
-          "https://images.pexels.com/photos/1571475/pexels-photo-1571475.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1",
+      "id": 203,
+      "name": "2 shutter glass with 1 shutter net",
+      "category": "Sub",
+      "parent": "Dumal",
+      "rate": 0.0,
+      "description": "Dumal - 2 shutter glass with 1 shutter net",
     },
     {
-      "id": 6,
-      "name": "Aluminium Window Frame",
-      "category": "Aluminium",
-      "rate": 42.80,
-      "description": "Durable aluminium window frame with powder coating",
-      "image":
-          "https://images.pexels.com/photos/1571478/pexels-photo-1571478.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1",
+      "id": 204,
+      "name": "2 with sliding net",
+      "category": "Sub",
+      "parent": "Dumal",
+      "rate": 0.0,
+      "description": "Dumal - 2 with sliding net",
     },
     {
-      "id": 7,
-      "name": "Wooden Wardrobe Door",
-      "category": "Wooden",
-      "rate": 55.60,
-      "description": "Premium wooden wardrobe door with mirror finish",
-      "image":
-          "https://images.pexels.com/photos/1571481/pexels-photo-1571481.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1",
+      "id": 205,
+      "name": "2 with grill",
+      "category": "Sub",
+      "parent": "Dumal",
+      "rate": 0.0,
+      "description": "Dumal - 2 with grill",
     },
     {
-      "id": 8,
-      "name": "Glass Shower Door",
-      "category": "Glass",
-      "rate": 48.75,
-      "description": "Tempered glass shower door with chrome handles",
-      "image":
-          "https://images.pexels.com/photos/1571484/pexels-photo-1571484.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1",
+      "id": 206,
+      "name": "2 in 1",
+      "category": "Sub",
+      "parent": "Z openable",
+      "rate": 0.0,
+      "description": "Z openable - 2 in 1",
     },
+    {
+      "id": 207,
+      "name": "3 in 1",
+      "category": "Sub",
+      "parent": "Z openable",
+      "rate": 0.0,
+      "description": "Z openable - 3 in 1",
+    },
+    // Existing products (for reference)
   ];
 
   @override
@@ -192,6 +249,13 @@ class _CreateQuotationState extends State<CreateQuotation> {
           ),
 
           ProductSelectionWidget(
+            topCategories: _topCategories,
+            selectedTopCategory: _selectedTopCategory,
+            onTopCategoryChanged: (category) {
+              setState(() {
+                _selectedTopCategory = category;
+              });
+            },
             products: _mockProducts,
             selectedProduct: _selectedProduct,
             onProductSelected: _onProductSelected,
@@ -202,11 +266,33 @@ class _CreateQuotationState extends State<CreateQuotation> {
               });
             },
             glassColorController: _glassColorController,
+            unitPriceController: _unitPriceController,
+            positionController: _positionController,
+            locationController: _locationController,
+            systemController: _systemController,
+            profileColorController: _profileColorController,
+            meshTypeController: _meshTypeController,
+            lockingController: _lockingController,
+            handleColorController: _handleColorController,
+            itemRemarksController: _itemRemarksController,
+            hasGrill: _hasGrill,
+            onHasGrillChanged: (v) => setState(() => _hasGrill = v),
+            grillOrientation: _grillOrientation,
+            onGrillOrientationChanged: (s) =>
+                setState(() => _grillOrientation = s),
+            grillPipeController: _grillPipeController,
+            pvcCountController: _pvcCountController,
             widthController: _widthController,
             heightController: _heightController,
             rateController: _rateController,
             selectedUnit: _selectedUnit,
             onUnitChanged: _onUnitChanged,
+            selectedMeasurement: _selectedMeasurement,
+            onMeasurementChanged: (m) {
+              setState(() {
+                _selectedMeasurement = m;
+              });
+            },
             productError: _productError,
             dimensionError: _dimensionError,
             rateError: _rateError,
@@ -220,6 +306,10 @@ class _CreateQuotationState extends State<CreateQuotation> {
               height: double.tryParse(_heightController.text) ?? 0.0,
               unit: _selectedUnit,
               hasMosquitoNet: _hasMosquitoNet,
+              hasGrill: _hasGrill,
+              grillOrientation: _grillOrientation,
+              grillPipeCount: int.tryParse(_grillPipeController.text) ?? 0,
+              pvcWindowCount: int.tryParse(_pvcCountController.text) ?? 1,
             ),
           ),
 
@@ -235,8 +325,78 @@ class _CreateQuotationState extends State<CreateQuotation> {
             onEditProduct: _onEditProduct,
           ),
 
+          // GST and Discount controls
+          Container(
+            margin: EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.h),
+            child: Card(
+              child: Padding(
+                padding: EdgeInsets.all(3.w),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: _gstEnabled,
+                          onChanged: (v) =>
+                              setState(() => _gstEnabled = v ?? false),
+                        ),
+                        SizedBox(width: 2.w),
+                        Expanded(
+                          child: Text('Enable GST',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600)),
+                        ),
+                        SizedBox(
+                          width: 28.w,
+                          child: TextField(
+                            controller: _gstRateController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
+                            decoration: const InputDecoration(suffixText: '%'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 1.h),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _discountPercentController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
+                            decoration: const InputDecoration(
+                                labelText: 'Discount (%)'),
+                          ),
+                        ),
+                        SizedBox(width: 4.w),
+                        Expanded(
+                          child: TextField(
+                            controller: _discountAmountController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
+                            decoration: const InputDecoration(
+                                labelText: 'Discount Amount'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
           CalculationSummaryWidget(
             products: _addedProducts,
+            gstRate: double.tryParse(_gstRateController.text) ?? 18.0,
+            gstEnabled: _gstEnabled,
+            discountPercent:
+                double.tryParse(_discountPercentController.text) ?? 0.0,
+            discountAmount:
+                double.tryParse(_discountAmountController.text) ?? 0.0,
           ),
 
           SizedBox(height: 10.h), // Space for bottom action bar
@@ -264,6 +424,13 @@ class _CreateQuotationState extends State<CreateQuotation> {
                   addressError: _addressError,
                 ),
                 ProductSelectionWidget(
+                  topCategories: _topCategories,
+                  selectedTopCategory: _selectedTopCategory,
+                  onTopCategoryChanged: (category) {
+                    setState(() {
+                      _selectedTopCategory = category;
+                    });
+                  },
                   products: _mockProducts,
                   selectedProduct: _selectedProduct,
                   onProductSelected: _onProductSelected,
@@ -274,11 +441,33 @@ class _CreateQuotationState extends State<CreateQuotation> {
                     });
                   },
                   glassColorController: _glassColorController,
+                  unitPriceController: _unitPriceController,
+                  hasGrill: _hasGrill,
+                  onHasGrillChanged: (v) => setState(() => _hasGrill = v),
+                  grillOrientation: _grillOrientation,
+                  onGrillOrientationChanged: (s) =>
+                      setState(() => _grillOrientation = s),
+                  grillPipeController: _grillPipeController,
+                  pvcCountController: _pvcCountController,
+                  positionController: _positionController,
+                  locationController: _locationController,
+                  systemController: _systemController,
+                  profileColorController: _profileColorController,
+                  meshTypeController: _meshTypeController,
+                  lockingController: _lockingController,
+                  handleColorController: _handleColorController,
+                  itemRemarksController: _itemRemarksController,
                   widthController: _widthController,
                   heightController: _heightController,
                   rateController: _rateController,
                   selectedUnit: _selectedUnit,
                   onUnitChanged: _onUnitChanged,
+                  selectedMeasurement: _selectedMeasurement,
+                  onMeasurementChanged: (m) {
+                    setState(() {
+                      _selectedMeasurement = m;
+                    });
+                  },
                   productError: _productError,
                   dimensionError: _dimensionError,
                   rateError: _rateError,
@@ -306,15 +495,101 @@ class _CreateQuotationState extends State<CreateQuotation> {
             padding: EdgeInsets.only(left: 2.w),
             child: Column(
               children: [
-                LivePreviewWidget(
-                  selectedProduct: _selectedProduct,
-                  width: double.tryParse(_widthController.text) ?? 0.0,
-                  height: double.tryParse(_heightController.text) ?? 0.0,
-                  unit: _selectedUnit,
-                  hasMosquitoNet: _hasMosquitoNet,
+                // Ensure the visible preview on wider screens is wrapped by the
+                // same RepaintBoundary keyed by _previewKey so capture works
+                // consistently across mobile and desktop layouts.
+                RepaintBoundary(
+                  key: _previewKey,
+                  child: LivePreviewWidget(
+                    selectedProduct: _selectedProduct,
+                    width: double.tryParse(_widthController.text) ?? 0.0,
+                    height: double.tryParse(_heightController.text) ?? 0.0,
+                    unit: _selectedUnit,
+                    hasMosquitoNet: _hasMosquitoNet,
+                    hasGrill: _hasGrill,
+                    grillOrientation: _grillOrientation,
+                    grillPipeCount:
+                        int.tryParse(_grillPipeController.text) ?? 0,
+                    pvcWindowCount: int.tryParse(_pvcCountController.text) ?? 1,
+                  ),
                 ),
+                // GST and Discount controls (tablet right column)
+                Container(
+                  margin: EdgeInsets.symmetric(horizontal: 2.w, vertical: 1.h),
+                  child: Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(2.w),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Checkbox(
+                                value: _gstEnabled,
+                                onChanged: (v) =>
+                                    setState(() => _gstEnabled = v ?? false),
+                              ),
+                              SizedBox(width: 2.w),
+                              Expanded(
+                                child: Text('Enable GST',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                            fontWeight: FontWeight.w600)),
+                              ),
+                              SizedBox(
+                                width: 24.w,
+                                child: TextField(
+                                  controller: _gstRateController,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                          decimal: true),
+                                  decoration:
+                                      const InputDecoration(suffixText: '%'),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 1.h),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _discountPercentController,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                          decimal: true),
+                                  decoration: const InputDecoration(
+                                      labelText: 'Discount (%)'),
+                                ),
+                              ),
+                              SizedBox(width: 4.w),
+                              Expanded(
+                                child: TextField(
+                                  controller: _discountAmountController,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                          decimal: true),
+                                  decoration: const InputDecoration(
+                                      labelText: 'Discount Amount'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
                 CalculationSummaryWidget(
                   products: _addedProducts,
+                  gstRate: double.tryParse(_gstRateController.text) ?? 18.0,
+                  gstEnabled: _gstEnabled,
+                  discountPercent:
+                      double.tryParse(_discountPercentController.text) ?? 0.0,
+                  discountAmount:
+                      double.tryParse(_discountAmountController.text) ?? 0.0,
                 ),
                 SizedBox(height: 10.h),
               ],
@@ -409,26 +684,58 @@ class _CreateQuotationState extends State<CreateQuotation> {
                           return;
                         }
 
-                        // Generate a temporary quotation id
-                        final qId =
-                            'QUO-${DateTime.now().millisecondsSinceEpoch}';
+                        // Generate a temporary quotation id using customer's phone if available
+                        final rawPhone = _phoneController.text.trim();
+                        final phoneDigits =
+                            rawPhone.replaceAll(RegExp(r'\D+'), '');
+                        final qId = phoneDigits.isNotEmpty
+                            ? 'QT-$phoneDigits'
+                            : 'QT-${DateTime.now().millisecondsSinceEpoch}';
 
                         // Build Quotation model
                         double subtotal = 0.0;
                         for (final product in _addedProducts) {
-                          final area = _calculateArea(
-                            product['width'] as double,
-                            product['height'] as double,
-                            product['unit'] as String,
-                          );
-                          subtotal += area * (product['rate'] as double);
+                          final rate = (product['rate'] as num).toDouble();
+                          final unitPrice =
+                              (product['unitPrice'] as num).toDouble();
+                          final qty = (product['quantity'] is int)
+                              ? (product['quantity'] as int)
+                              : 1;
+                          final value = rate * unitPrice * qty;
+                          subtotal += value;
                         }
-                        final gstAmount = subtotal * 0.18;
-                        final total = subtotal + gstAmount;
+                        final gstRate = _gstEnabled
+                            ? (double.tryParse(_gstRateController.text) ?? 0)
+                            : 0.0;
+                        final gstAmount =
+                            _gstEnabled ? subtotal * (gstRate / 100) : 0.0;
+                        // discount: prefer explicit amount if > 0 else percent
+                        final discountPercent =
+                            double.tryParse(_discountPercentController.text) ??
+                                0.0;
+                        final discountAmountInput =
+                            double.tryParse(_discountAmountController.text) ??
+                                0.0;
+                        final discountAmount = discountAmountInput > 0
+                            ? discountAmountInput
+                            : subtotal * (discountPercent / 100);
+                        final total = subtotal + gstAmount - discountAmount;
 
                         final quotation = qmodels.Quotation(
                           id: qId,
                           customerName: _nameController.text.trim(),
+                          customerPhone: _phoneController.text.trim(),
+                          customerAddress: _addressController.text.trim(),
+                          gstEnabled: _gstEnabled,
+                          gstRate: _gstEnabled
+                              ? (double.tryParse(_gstRateController.text) ?? 0)
+                              : 0,
+                          discountPercent: double.tryParse(
+                                  _discountPercentController.text) ??
+                              0,
+                          discountAmount:
+                              double.tryParse(_discountAmountController.text) ??
+                                  0,
                           quotationDate: DateTime.now(),
                           totalAmount: total,
                           status: 'Draft',
@@ -443,19 +750,62 @@ class _CreateQuotationState extends State<CreateQuotation> {
                                   : double.tryParse(
                                           product['rate']?.toString() ?? '0') ??
                                       0.0,
+                              unitPrice: (product['unitPrice'] is num)
+                                  ? (product['unitPrice'] as num).toDouble()
+                                  : double.tryParse(
+                                          product['unitPrice']?.toString() ??
+                                              '0') ??
+                                      0.0,
+                              subtype: (product['subtype'] ??
+                                      product['selectedSubtype'])
+                                  ?.toString(),
+                              area: product['area'] is num
+                                  ? (product['area'] as num).toDouble()
+                                  : (double.tryParse(
+                                          product['area']?.toString() ?? '') ??
+                                      null),
                               quantity: (product['quantity'] is int)
                                   ? (product['quantity'] as int)
                                   : 1,
                               glassColor:
                                   product['glassColor']?.toString() ?? '',
                               hasMosquitoNet: product['hasMosquitoNet'] == true,
+                              hasGrill: product['hasGrill'] == true,
+                              grillOrientation:
+                                  product['grillOrientation']?.toString() ??
+                                      'horizontal',
+                              grillPipeCount: product['grillPipeCount'] is int
+                                  ? product['grillPipeCount'] as int
+                                  : (product['grillPipeCount'] != null
+                                      ? int.tryParse(
+                                          product['grillPipeCount'].toString())
+                                      : null),
+                              pvcWindowCount: product['pvcWindowCount'] is int
+                                  ? product['pvcWindowCount'] as int
+                                  : (product['pvcWindowCount'] != null
+                                      ? int.tryParse(
+                                          product['pvcWindowCount'].toString())
+                                      : null),
+                              position: product['position'] is int
+                                  ? product['position'] as int
+                                  : (product['position'] != null
+                                      ? int.tryParse(
+                                          product['position'].toString())
+                                      : null),
+                              location: product['location']?.toString() ?? '',
+                              system: product['system']?.toString() ?? '',
+                              profileColor:
+                                  product['profileColor']?.toString() ?? '',
+                              meshType: product['meshType']?.toString() ?? '',
+                              locking: product['locking']?.toString() ?? '',
+                              handleColor:
+                                  product['handleColor']?.toString() ?? '',
+                              remarks: product['remarks']?.toString() ?? '',
                             );
                           }).toList(),
                         );
 
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Generating PDF...')),
-                        );
+                        // quotation built above; continue to PDF generation
 
                         try {
                           final itemPreviews = await _capturePreviewsForItems();
@@ -541,58 +891,16 @@ class _CreateQuotationState extends State<CreateQuotation> {
       final boundary = _previewKey.currentContext?.findRenderObject()
           as RenderRepaintBoundary?;
       if (boundary == null) return null;
-      const double pixelRatio = 3.0;
+      // Use devicePixelRatio to capture at correct resolution for the current display.
+      final pixelRatio = ui.window.devicePixelRatio.clamp(1.0, 4.0);
       final ui.Image fullImage = await boundary.toImage(pixelRatio: pixelRatio);
 
-      // compute interior rect using same logic as ProductPreviewPainter
-      final fullW = fullImage.width.toDouble();
-      final fullH = fullImage.height.toDouble();
-      final centerX = fullW / 2;
-      final centerY = fullH / 2;
-      final maxWidth = fullW * 0.7;
-      final maxHeight = fullH * 0.7;
-
-      final aspectRatio = (productWidth > 0 && productHeight > 0)
-          ? (productWidth / productHeight)
-          : 1.0;
-      double drawW, drawH;
-      if (aspectRatio > 1) {
-        drawW = maxWidth;
-        drawH = maxWidth / aspectRatio;
-      } else {
-        drawH = maxHeight;
-        drawW = maxHeight * aspectRatio;
-      }
-
-      final srcRect = Rect.fromCenter(
-          center: Offset(centerX, centerY), width: drawW, height: drawH);
-
-      // clamp to image bounds
-      final clamped = Rect.fromLTRB(
-        srcRect.left.clamp(0.0, fullW),
-        srcRect.top.clamp(0.0, fullH),
-        srcRect.right.clamp(0.0, fullW),
-        srcRect.bottom.clamp(0.0, fullH),
-      );
-
-      final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder);
-      final dstW = (clamped.width).toInt();
-      final dstH = (clamped.height).toInt();
-      if (dstW <= 0 || dstH <= 0) {
-        // fallback: return full image bytes
-        final byteData =
-            await fullImage.toByteData(format: ui.ImageByteFormat.png);
-        return byteData?.buffer.asUint8List();
-      }
-
-      // draw the cropped region into a new canvas
-      final dstRect = Rect.fromLTWH(0, 0, clamped.width, clamped.height);
-      final paint = Paint();
-      canvas.drawImageRect(fullImage, clamped, dstRect, paint);
-      final picture = recorder.endRecording();
-      final ui.Image cropped = await picture.toImage(dstW, dstH);
-      final byteData = await cropped.toByteData(format: ui.ImageByteFormat.png);
+      // On desktop platforms the precise crop math can accidentally trim
+      // visible edges (ticks, labels or outer frame). To ensure the PDF
+      // contains the full visible preview, return the entire RepaintBoundary
+      // capture as PNG and let the PDF layout scale it as needed.
+      final byteData =
+          await fullImage.toByteData(format: ui.ImageByteFormat.png);
       return byteData?.buffer.asUint8List();
     } catch (e) {
       // on any failure return null so PDF generator can fallback
@@ -610,8 +918,13 @@ class _CreateQuotationState extends State<CreateQuotation> {
     final prevHeightText = _heightController.text;
     final prevUnit = _selectedUnit;
     final prevHasNet = _hasMosquitoNet;
+    final prevHasGrill = _hasGrill;
+    final prevGrillOrientation = _grillOrientation;
+    final prevGrillPipeText = _grillPipeController.text;
+    final prevPvcCountText = _pvcCountController.text;
 
-    for (final product in _addedProducts) {
+    for (int i = 0; i < _addedProducts.length; i++) {
+      final product = _addedProducts[i];
       try {
         setState(() {
           _selectedProduct = product;
@@ -619,10 +932,26 @@ class _CreateQuotationState extends State<CreateQuotation> {
           _heightController.text = (product['height'] as double).toString();
           _selectedUnit = product['unit'] as String;
           _hasMosquitoNet = product['hasMosquitoNet'] == true;
+          _hasGrill = product['hasGrill'] == true;
+          _grillOrientation =
+              product['grillOrientation']?.toString() ?? 'horizontal';
+          _grillPipeController.text =
+              (product['grillPipeCount']?.toString() ?? '0');
+          _pvcCountController.text =
+              (product['pvcWindowCount']?.toString() ?? '1');
+          // If the product is Dumal or Z openable, ensure pvc count is at least 2
+          try {
+            final name = (product['name'] ?? '').toString();
+            if (name.toLowerCase() == 'dumal' ||
+                name.toLowerCase() == 'z openable') {
+              final cur = _pvcCountController.text.trim();
+              if (cur.isEmpty || cur == '1') _pvcCountController.text = '2';
+            }
+          } catch (_) {}
         });
 
-        // wait a frame for the widget to rebuild and paint
-        await Future.delayed(const Duration(milliseconds: 150));
+        // wait longer to ensure the widget finishes painting on slower platforms like Windows
+        await Future.delayed(const Duration(milliseconds: 300));
         final bytes = await _captureInteriorPreviewAsPng(
           product: product,
           productWidth: (product['width'] as double),
@@ -630,6 +959,24 @@ class _CreateQuotationState extends State<CreateQuotation> {
           unit: product['unit'] as String,
           hasMosquitoNet: product['hasMosquitoNet'] == true,
         );
+
+        // Diagnostic dump: when running on Windows or in debug mode, write the
+        // captured PNG to the system temp directory so we can inspect whether
+        // the capture produced a valid image on that platform.
+        if (bytes != null) {
+          try {
+            if (kDebugMode || io.Platform.isWindows) {
+              final ts = DateTime.now().millisecondsSinceEpoch;
+              final tmp = io.Directory.systemTemp;
+              final file = io.File(
+                  '${tmp.path}${io.Platform.pathSeparator}preview_debug_${i}_$ts.png');
+              await file.writeAsBytes(bytes);
+              // ignore: avoid_print
+              print('Wrote debug preview to: ${file.path}');
+            }
+          } catch (_) {}
+        }
+
         previews.add(bytes);
       } catch (_) {
         previews.add(null);
@@ -643,25 +990,74 @@ class _CreateQuotationState extends State<CreateQuotation> {
       _heightController.text = prevHeightText;
       _selectedUnit = prevUnit;
       _hasMosquitoNet = prevHasNet;
+      _hasGrill = prevHasGrill;
+      _grillOrientation = prevGrillOrientation;
+      _grillPipeController.text = prevGrillPipeText;
+      _pvcCountController.text = prevPvcCountText;
     });
-    await Future.delayed(const Duration(milliseconds: 100));
+    // allow a short delay for the UI to settle after restore
+    await Future.delayed(const Duration(milliseconds: 150));
     return previews;
   }
 
   void _addProduct() {
     if (_validateProductForm()) {
+      final width = double.tryParse(_widthController.text) ?? 0.0;
+      final height = double.tryParse(_heightController.text) ?? 0.0;
+      final unit = _selectedUnit;
+      double area = 0.0;
+      switch (unit) {
+        case 'mm':
+          area = (width * height) / 92903.04;
+          break;
+        case 'inches':
+          area = (width / 12) * (height / 12);
+          break;
+        case 'cm':
+          area = (width / 30.48) * (height / 30.48);
+          break;
+        default:
+          area = width * height;
+      }
+      final unitPrice = double.tryParse(_rateController.text) ?? 0.0;
+      final value = unitPrice * area;
       final productData = {
-        'id': _selectedProduct!['id'],
-        'name': _selectedProduct!['name'],
-        'category': _selectedProduct!['category'],
-        'width': double.parse(_widthController.text),
-        'height': double.parse(_heightController.text),
-        'unit': _selectedUnit,
-        'rate': double.parse(_rateController.text),
+        'id': _selectedProduct != null ? _selectedProduct!['id'] : null,
+        'name': _selectedProduct != null ? _selectedProduct!['name'] : '',
+        'topCategory': _selectedTopCategory,
+        'category':
+            _selectedProduct != null ? _selectedProduct!['category'] : '',
+        'subtype': _selectedProduct != null &&
+                _selectedProduct!.containsKey('selectedSubtype')
+            ? _selectedProduct!['selectedSubtype']
+            : null,
+        'width': width,
+        'height': height,
+        'unit': unit,
+        'measurementType': _selectedMeasurement,
+        'rate': unitPrice,
+        'unitPrice': unitPrice,
+        'area': area,
+        'value': value,
         'glassColor': _glassColorController.text.trim(),
         'hasMosquitoNet': _hasMosquitoNet,
+        'position': int.tryParse(_positionController.text),
+        'location': _locationController.text.trim(),
+        'system': _systemController.text.trim(),
+        'profileColor': _profileColorController.text.trim(),
+        'meshType': _meshTypeController.text.trim(),
+        'locking': _lockingController.text.trim(),
+        'handleColor': _handleColorController.text.trim(),
+        'remarks': _itemRemarksController.text.trim(),
+        'hasGrill': _hasGrill,
+        'grillOrientation': _grillOrientation,
+        'grillPipeCount': int.tryParse(_grillPipeController.text) ?? 0,
+        'pvcWindowCount': int.tryParse(_pvcCountController.text) ?? 1,
+        'forceSinglePane': _selectedProduct != null &&
+            (_selectedProduct!['forceSinglePane'] == true),
       };
 
+      debugPrint('Adding product: ${productData.toString()}');
       setState(() {
         if (_editingIndex != null) {
           _addedProducts[_editingIndex!] = productData;
@@ -681,6 +1077,14 @@ class _CreateQuotationState extends State<CreateQuotation> {
                 : 'Product added successfully!',
           ),
           backgroundColor: AppTheme.lightTheme.colorScheme.tertiary,
+        ),
+      );
+    } else {
+      debugPrint('Product form validation failed');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Product not added: Please check all required fields.'),
+          backgroundColor: AppTheme.lightTheme.colorScheme.error,
         ),
       );
     }
@@ -710,6 +1114,7 @@ class _CreateQuotationState extends State<CreateQuotation> {
     final product = _addedProducts[index];
     setState(() {
       _editingIndex = index;
+      _selectedTopCategory = product['topCategory'] as String?;
       _selectedProduct = _mockProducts.firstWhere(
         (p) => p['id'] == product['id'],
         orElse: () => product,
@@ -719,6 +1124,33 @@ class _CreateQuotationState extends State<CreateQuotation> {
       _rateController.text = (product['rate'] as double).toString();
       _selectedUnit = product['unit'] as String;
       _glassColorController.text = (product['glassColor'] ?? '') as String;
+      _positionController.text = (product['position']?.toString() ?? '');
+      _locationController.text = (product['location']?.toString() ?? '');
+      _systemController.text = (product['system']?.toString() ?? '');
+      _profileColorController.text =
+          (product['profileColor']?.toString() ?? '');
+      _meshTypeController.text = (product['meshType']?.toString() ?? '');
+      _lockingController.text = (product['locking']?.toString() ?? '');
+      _handleColorController.text = (product['handleColor']?.toString() ?? '');
+      _itemRemarksController.text = (product['remarks']?.toString() ?? '');
+      _selectedMeasurement = product['measurementType']?.toString() ?? 'sqft';
+      _hasMosquitoNet = product['hasMosquitoNet'] == true;
+      _unitPriceController.text = (product['unitPrice']?.toString() ?? '0');
+      _hasGrill = product['hasGrill'] == true;
+      _grillOrientation =
+          product['grillOrientation']?.toString() ?? 'horizontal';
+      _grillPipeController.text =
+          (product['grillPipeCount']?.toString() ?? '0');
+      _pvcCountController.text = (product['pvcWindowCount']?.toString() ?? '1');
+      // If the product is Dumal or Z openable, ensure pvc count is at least 2
+      try {
+        final name = (product['name'] ?? '').toString();
+        if (name.toLowerCase() == 'dumal' ||
+            name.toLowerCase() == 'z openable') {
+          final cur = _pvcCountController.text.trim();
+          if (cur.isEmpty || cur == '1') _pvcCountController.text = '2';
+        }
+      } catch (_) {}
     });
 
     // Scroll to product selection
@@ -730,53 +1162,18 @@ class _CreateQuotationState extends State<CreateQuotation> {
   }
 
   bool _validateProductForm() {
-    bool isValid = true;
-
-    setState(() {
-      _productError = null;
-      _dimensionError = null;
-      _rateError = null;
-    });
-
-    if (_selectedProduct == null) {
-      setState(() {
-        _productError = 'Please select a product';
-      });
-      isValid = false;
+    // Check if top category is selected
+    if (_selectedTopCategory == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please select a category'),
+          backgroundColor: AppTheme.lightTheme.colorScheme.error,
+        ),
+      );
+      return false;
     }
-
-    if (_widthController.text.isEmpty || _heightController.text.isEmpty) {
-      setState(() {
-        _dimensionError = 'Please enter both width and height';
-      });
-      isValid = false;
-    } else {
-      final width = double.tryParse(_widthController.text);
-      final height = double.tryParse(_heightController.text);
-      if (width == null || height == null || width <= 0 || height <= 0) {
-        setState(() {
-          _dimensionError = 'Please enter valid dimensions';
-        });
-        isValid = false;
-      }
-    }
-
-    if (_rateController.text.isEmpty) {
-      setState(() {
-        _rateError = 'Please enter rate';
-      });
-      isValid = false;
-    } else {
-      final rate = double.tryParse(_rateController.text);
-      if (rate == null || rate <= 0) {
-        setState(() {
-          _rateError = 'Please enter valid rate';
-        });
-        isValid = false;
-      }
-    }
-
-    return isValid;
+    // No other required field validation, always return true
+    return true;
   }
 
   bool _validateCustomerForm() {
@@ -822,12 +1219,24 @@ class _CreateQuotationState extends State<CreateQuotation> {
     _heightController.clear();
     _rateController.clear();
     _glassColorController.clear();
+    _positionController.clear();
+    _locationController.clear();
+    _systemController.clear();
+    _profileColorController.clear();
+    _meshTypeController.clear();
+    _lockingController.clear();
+    _handleColorController.clear();
+    _itemRemarksController.clear();
     setState(() {
+      _selectedTopCategory = null;
       _selectedProduct = null;
       _selectedUnit = 'feet';
       _productError = null;
       _dimensionError = null;
       _rateError = null;
+      _selectedMeasurement = 'sqft';
+      _hasMosquitoNet = false;
+      _unitPriceController.clear();
     });
   }
 
@@ -910,18 +1319,21 @@ class _CreateQuotationState extends State<CreateQuotation> {
       return;
     }
 
-    // Generate quotation ID
-    final quotationId = 'QUO-${DateTime.now().millisecondsSinceEpoch}';
+    // Generate quotation ID using customer's phone if available
+    final rawPhone = _phoneController.text.trim();
+    final phoneDigits = rawPhone.replaceAll(RegExp(r'\D+'), '');
+    final quotationId = phoneDigits.isNotEmpty
+        ? 'QT-$phoneDigits'
+        : 'QT-${DateTime.now().millisecondsSinceEpoch}';
 
     // Calculate totals
     double subtotal = 0.0;
     for (final product in _addedProducts) {
-      final area = _calculateArea(
-        product['width'] as double,
-        product['height'] as double,
-        product['unit'] as String,
-      );
-      subtotal += area * (product['rate'] as double);
+      final rate = (product['rate'] as num).toDouble();
+      final unitPrice = (product['unitPrice'] as num).toDouble();
+      final qty =
+          (product['quantity'] is int) ? (product['quantity'] as int) : 1;
+      subtotal += rate * unitPrice * qty;
     }
     final gstAmount = subtotal * 0.18;
     final total = subtotal + gstAmount;
@@ -955,7 +1367,7 @@ class _CreateQuotationState extends State<CreateQuotation> {
             SizedBox(height: 1.h),
             Text('Customer: ${_nameController.text}'),
             SizedBox(height: 1.h),
-            Text('Total Amount: \$${total.toStringAsFixed(2)}'),
+            Text('Total Amount: ₹${total.toStringAsFixed(2)}'),
             SizedBox(height: 1.h),
             Text('Products: ${_addedProducts.length}'),
           ],
@@ -968,6 +1380,8 @@ class _CreateQuotationState extends State<CreateQuotation> {
               final quotation = qmodels.Quotation(
                 id: quotationId,
                 customerName: _nameController.text.trim(),
+                customerPhone: _phoneController.text.trim(),
+                customerAddress: _addressController.text.trim(),
                 quotationDate: DateTime.now(),
                 totalAmount: total,
                 status: 'Draft',
@@ -977,6 +1391,15 @@ class _CreateQuotationState extends State<CreateQuotation> {
                     category: product['category']?.toString() ?? '',
                     size:
                         '${product['width']?.toString() ?? ''} ${product['unit'] ?? ''} x ${product['height']?.toString() ?? ''} ${product['unit'] ?? ''}',
+                    width: (product['width'] is num)
+                        ? (product['width'] as num).toDouble()
+                        : double.tryParse(product['width']?.toString() ?? ''),
+                    height: (product['height'] is num)
+                        ? (product['height'] as num).toDouble()
+                        : double.tryParse(product['height']?.toString() ?? ''),
+                    unit: product['unit']?.toString() ?? 'feet',
+                    measurementType:
+                        product['measurementType']?.toString() ?? 'sqft',
                     rate: (product['rate'] is num)
                         ? (product['rate'] as num).toDouble()
                         : double.tryParse(product['rate']?.toString() ?? '0') ??
@@ -986,6 +1409,29 @@ class _CreateQuotationState extends State<CreateQuotation> {
                         : 1,
                     glassColor: product['glassColor']?.toString() ?? '',
                     hasMosquitoNet: product['hasMosquitoNet'] == true,
+                    position: product['position'] is int
+                        ? product['position'] as int
+                        : (product['position'] != null
+                            ? int.tryParse(product['position'].toString())
+                            : null),
+                    location: product['location']?.toString() ?? '',
+                    system: product['system']?.toString() ?? '',
+                    profileColor: product['profileColor']?.toString() ?? '',
+                    meshType: product['meshType']?.toString() ?? '',
+                    locking: product['locking']?.toString() ?? '',
+                    handleColor: product['handleColor']?.toString() ?? '',
+                    remarks: product['remarks']?.toString() ?? '',
+                    unitPrice: (product['unitPrice'] is num)
+                        ? (product['unitPrice'] as num).toDouble()
+                        : double.tryParse(
+                                product['unitPrice']?.toString() ?? '0') ??
+                            0.0,
+                    subtype: (product['subtype'] ?? product['selectedSubtype'])
+                        ?.toString(),
+                    area: product['area'] is num
+                        ? (product['area'] as num).toDouble()
+                        : (double.tryParse(product['area']?.toString() ?? '') ??
+                            null),
                   );
                 }).toList(),
               );
@@ -1024,24 +1470,7 @@ class _CreateQuotationState extends State<CreateQuotation> {
     );
   }
 
-  double _calculateArea(double width, double height, String unit) {
-    double widthInFeet = width;
-    double heightInFeet = height;
-
-    // Convert to feet if necessary
-    switch (unit) {
-      case 'inches':
-        widthInFeet = width / 12;
-        heightInFeet = height / 12;
-        break;
-      case 'cm':
-        widthInFeet = width / 30.48;
-        heightInFeet = height / 30.48;
-        break;
-    }
-
-    return widthInFeet * heightInFeet;
-  }
+  // area calculation moved to preview and other widgets where needed
 
   @override
   void dispose() {
@@ -1051,7 +1480,16 @@ class _CreateQuotationState extends State<CreateQuotation> {
     _widthController.dispose();
     _heightController.dispose();
     _rateController.dispose();
+    _unitPriceController.dispose();
     _glassColorController.dispose();
+    _positionController.dispose();
+    _locationController.dispose();
+    _systemController.dispose();
+    _profileColorController.dispose();
+    _meshTypeController.dispose();
+    _lockingController.dispose();
+    _handleColorController.dispose();
+    _itemRemarksController.dispose();
     super.dispose();
   }
 }

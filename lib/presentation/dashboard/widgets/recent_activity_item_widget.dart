@@ -27,7 +27,7 @@ class RecentActivityItemWidget extends StatelessWidget {
     final String customerName =
         (activity["customerName"] as String?) ?? "Unknown Customer";
     final String date = (activity["date"] as String?) ?? "Unknown Date";
-    final String amount = (activity["amount"] as String?) ?? "\$0.00";
+    final String amount = (activity["amount"] as String?) ?? "₹0.00";
     final String status = (activity["status"] as String?) ?? "pending";
 
     return Dismissible(
